@@ -26,6 +26,15 @@ const jobSchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
+    assignedTruck: { 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Truck",
+      required: true,
+    },
+    jobDate: {               
+      type: Date,
+      required: true,
+    },
     status: {
       type: String,
       enum: ["pending", "in-progress", "completed"],

@@ -1,5 +1,3 @@
-// controllers/jobController.js
-
 const Job = require("../models/job");
 const Driver = require("../models/driver");
 const logger = require("../utils/logger");
@@ -15,6 +13,8 @@ exports.createJob = async (req, res) => {
       pickupLocation,
       deliveryLocation,
       assignedTo,
+      assignedTruck,
+      jobDate,
       jobType,
     } = req.body;
 
@@ -24,12 +24,38 @@ exports.createJob = async (req, res) => {
       return res.status(404).json({ status: "fail", message: "Driver not found" });
     }
 
+    if (!assignedTruck) {
+      return res.status(400).json({ status: "fail", message: "Assigned truck is required" });
+    }
+
+    if (!jobDate) {
+      return res.status(400).json({ status: "fail", message: "Job date is required" });
+    }
+
+    // ✅ Prevent assigning the same truck twice on the same day
+    const existingJob = await Job.findOne({
+      assignedTruck,
+      jobDate: {
+        $gte: new Date(new Date(jobDate).setHours(0, 0, 0, 0)),
+        $lt: new Date(new Date(jobDate).setHours(23, 59, 59, 999)),
+      },
+    });
+
+    if (existingJob) {
+      return res.status(400).json({
+        status: "fail",
+        message: "This truck is already assigned to another job on the selected date",
+      });
+    }
+
     const newJob = await Job.create({
-      title,
-      description,
-      pickupLocation,
-      deliveryLocation,
+      title: title.trim(),
+      description: description?.trim(),
+      pickupLocation: pickupLocation.trim(),
+      deliveryLocation: deliveryLocation.trim(),
       assignedTo,
+      assignedTruck,
+      jobDate: new Date(jobDate),
       jobType,
       status: "pending",
     });
@@ -41,12 +67,16 @@ exports.createJob = async (req, res) => {
   }
 };
 
+
 // @desc    Get all jobs (admin only)
 // @route   GET /api/jobs
 // @access  Admin
 exports.getAllJobs = async (req, res) => {
   try {
-    const jobs = await Job.find().populate("assignedTo", "name email driverType").lean();
+    const jobs = await Job.find()
+      .populate("assignedTo", "name email driverType")
+      .populate("assignedTruck", "truckNumber")
+      .lean();
     res.status(200).json({ status: "success", results: jobs.length, data: jobs });
   } catch (err) {
     logger.error("Get Jobs Error: %o", err);
@@ -59,7 +89,10 @@ exports.getAllJobs = async (req, res) => {
 // @access  Admin or Assigned Driver
 exports.getJobById = async (req, res) => {
   try {
-    const job = await Job.findById(req.params.jobId).populate("assignedTo", "name email").lean();
+    const job = await Job.findById(req.params.jobId)
+      .populate("assignedTo", "name email")
+      .populate("assignedTruck", "truckNumber")
+      .lean();
 
     if (!job) {
       return res.status(404).json({ status: "fail", message: "Job not found" });
@@ -143,6 +176,8 @@ exports.updateJob = async (req, res) => {
       pickupLocation,
       deliveryLocation,
       assignedTo,
+      assignedTruck,
+      jobDate,
       jobType,
       status,
     } = req.body;
@@ -181,12 +216,16 @@ exports.updateJob = async (req, res) => {
     job.pickupLocation = pickupLocation !== undefined ? pickupLocation : job.pickupLocation;
     job.deliveryLocation = deliveryLocation !== undefined ? deliveryLocation : job.deliveryLocation;
     job.assignedTo = assignedTo !== undefined ? assignedTo : job.assignedTo;
+    job.assignedTruck = assignedTruck !== undefined ? assignedTruck : job.assignedTruck;
+    job.jobDate = jobDate !== undefined ? new Date(jobDate) : job.jobDate;
     job.jobType = jobType !== undefined ? jobType : job.jobType;
     job.status = status !== undefined ? status : job.status;
 
     await job.save();
 
-    const updatedJob = await Job.findById(jobId).populate("assignedTo", "name email driverType");
+    const updatedJob = await Job.findById(jobId)
+      .populate("assignedTo", "name email driverType")
+      .populate("assignedTruck", "truckNumber");
 
     res.status(200).json({ status: "success", data: updatedJob });
   } catch (err) {

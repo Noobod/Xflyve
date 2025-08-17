@@ -21,6 +21,11 @@ const truckSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Driver" 
   },
+   assignedJob: {  
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Job",
+    default: null,
+  },
   lastMaintenanceDate: { type: Date },
 }, { timestamps: true });
 
