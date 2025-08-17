@@ -1,5 +1,5 @@
 # .gitignore
 node_modules/
-.env.example
+.env
 uploads/
 *.log
