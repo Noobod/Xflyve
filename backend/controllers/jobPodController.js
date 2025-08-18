@@ -13,16 +13,14 @@ const deleteFile = require("../utils/fileCleaner");
  * @access Driver (assigned) or Admin
  */
 exports.uploadPODByDriver = async (req, res) => {
-  const jobId = req.body.jobId;
+  const jobId = req.body.jobId || req.params.jobId;
 
   if (!jobId || !mongoose.Types.ObjectId.isValid(jobId)) {
     if (req.file) await deleteFile(req.file.path);
-    return res.status(400).json({ status: "fail", message: "Invalid or missing jobId in body" });
+    return res.status(400).json({ status: "fail", message: "Invalid or missing jobId" });
   }
 
-  if (!req.file) {
-    return res.status(400).json({ status: "fail", message: "No file uploaded" });
-  }
+  if (!req.file) return res.status(400).json({ status: "fail", message: "No file uploaded" });
 
   try {
     const job = await Job.findById(jobId).lean();
@@ -119,5 +117,54 @@ exports.getAllPODsForAdmin = async (req, res) => {
   } catch (err) {
     logger.error("Get all PODs for admin error: %o", err);
     return res.status(500).json({ status: "error", message: "Server error while fetching all PODs" });
+  }
+};
+
+// Delete POD
+exports.deletePOD = async (req, res) => {
+  const { jobId } = req.params;
+  try {
+    const podRecord = await JobPod.findOne({ jobId, driverId: req.user.id });
+    if (!podRecord) return res.status(404).json({ status: "fail", message: "POD not found" });
+
+    // Delete file from server
+    if (podRecord.podFilePath) {
+      await deleteFile(podRecord.podFilePath);
+    }
+
+    // Remove record
+    await JobPod.deleteOne({ _id: podRecord._id });
+
+    res.status(200).json({ status: "success", message: "POD deleted successfully" });
+  } catch (err) {
+    logger.error("Delete POD error: %o", err);
+    res.status(500).json({ status: "error", message: "Server error while deleting POD" });
+  }
+};
+
+// Update POD
+exports.updatePOD = async (req, res) => {
+  const { jobId } = req.params;
+  const file = req.file;
+
+  if (!file) return res.status(400).json({ status: "fail", message: "No file uploaded" });
+
+  try {
+    const podRecord = await JobPod.findOne({ jobId, driverId: req.user.id });
+    if (!podRecord) return res.status(404).json({ status: "fail", message: "POD not found" });
+
+    // Delete old file
+    if (podRecord.podFilePath) await deleteFile(podRecord.podFilePath);
+
+    // Update with new file
+    podRecord.podFilePath = file.path;
+    podRecord.uploadedAt = new Date();
+    await podRecord.save();
+
+    res.status(200).json({ status: "success", message: "POD updated successfully", data: podRecord });
+  } catch (err) {
+    if (file) await deleteFile(file.path);
+    logger.error("Update POD error: %o", err);
+    res.status(500).json({ status: "error", message: "Server error while updating POD" });
   }
 };

@@ -39,3 +39,20 @@ router.get(
 );
 
 module.exports = router;
+
+// Delete POD for a job
+router.delete(
+  "/:jobId",
+  requireDriver, // or requireAdmin if admin can also delete
+  validateMongoId("jobId"),
+  jobPodController.deletePOD
+);
+
+// Update/Overwrite POD for a job
+router.put(
+  "/upload/:jobId",
+  requireDriver,
+  validateMongoId("jobId"),
+  upload.single("podFile"),
+  jobPodController.updatePOD
+);

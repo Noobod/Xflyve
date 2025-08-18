@@ -20,7 +20,6 @@ const truckAssignRoutes = require("./routes/truckAssignRoutes");
 const jobPodRoutes = require("./routes/jobPodRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const workDiaryRoutes = require("./routes/workDiaryRoutes");
-const permanentAssignRoutes = require("./routes/permanentAssignRoutes");
 
 const app = express();
 
@@ -94,7 +93,6 @@ app.use("/api/admin/truck-assignments", truckAssignRoutes);
 app.use("/api/jobpods", jobPodRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/workdiaries", workDiaryRoutes);
-app.use("/api/permanent-assign", permanentAssignRoutes);
 
 // ✅ Serve frontend build for non-API routes
 app.use(express.static(path.join(__dirname, "../frontend/dist"))); // Adjust path if needed
