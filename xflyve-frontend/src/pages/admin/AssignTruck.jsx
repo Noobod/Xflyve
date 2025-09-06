@@ -16,6 +16,10 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Box,
+  Stack,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import {
   getAllDrivers,
@@ -27,6 +31,9 @@ import {
 } from "../../api";
 
 const AssignAndManageTrucks = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   // Form state
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
@@ -34,18 +41,18 @@ const AssignAndManageTrucks = () => {
   const [selectedTruck, setSelectedTruck] = useState("");
   const [date, setDate] = useState("");
 
-  // Assign form feedback
+  // Feedback state
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // List and edit state
+  // Assignments state
   const [assignments, setAssignments] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
   const [editData, setEditData] = useState(null);
 
-  // Fetch drivers, trucks, and assignments on mount
+  // Fetch data on mount
   useEffect(() => {
     const fetchAll = async () => {
       try {
@@ -87,7 +94,6 @@ const AssignAndManageTrucks = () => {
         setSelectedDriver("");
         setSelectedTruck("");
         setDate("");
-        // Refresh assignments list
         const assignmentsRes = await getAllTruckAssignments();
         setAssignments(assignmentsRes.data.data || []);
       }
@@ -104,14 +110,14 @@ const AssignAndManageTrucks = () => {
       id: assignment._id,
       driverId: assignment.driverId._id,
       truckId: assignment.truckId._id,
-      date: new Date(assignment.date).toISOString().split("T")[0], // yyyy-mm-dd
+      date: new Date(assignment.date).toISOString().split("T")[0],
     });
     setEditOpen(true);
     setError("");
     setSuccess("");
   };
 
-  // Handle edit form change
+  // Handle edit change
   const handleEditChange = (e) => {
     setEditData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -149,11 +155,16 @@ const AssignAndManageTrucks = () => {
     }
   };
 
-  if (loading) return <CircularProgress />;
+  if (loading)
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom>
+    <Container maxWidth="md" sx={{ mt: { xs: 2, md: 4 }, px: { xs: 2, md: 0 } }}>
+      <Typography variant="h4" gutterBottom align="center">
         Assign Truck to Driver
       </Typography>
 
@@ -170,159 +181,165 @@ const AssignAndManageTrucks = () => {
 
       {/* Assign Form */}
       <form onSubmit={handleSubmit} noValidate>
-        <TextField
-          select
-          fullWidth
-          label="Select Driver"
-          value={selectedDriver}
-          onChange={(e) => setSelectedDriver(e.target.value)}
-          margin="normal"
-          required
-        >
-          {drivers.map((driver) => (
-            <MenuItem key={driver._id} value={driver._id}>
-              {driver.name}
-            </MenuItem>
-          ))}
-        </TextField>
+        <Stack spacing={2}>
+          <TextField
+            select
+            fullWidth
+            label="Select Driver"
+            value={selectedDriver}
+            onChange={(e) => setSelectedDriver(e.target.value)}
+            required
+          >
+            {drivers.map((driver) => (
+              <MenuItem key={driver._id} value={driver._id}>
+                {driver.name}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          select
-          fullWidth
-          label="Select Truck (Rego)"
-          value={selectedTruck}
-          onChange={(e) => setSelectedTruck(e.target.value)}
-          margin="normal"
-          required
-        >
-          {trucks.map((truck) => (
-            <MenuItem key={truck._id} value={truck._id}>
-              {truck.truckNumber}
-            </MenuItem>
-          ))}
-        </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Select Truck (Rego)"
+            value={selectedTruck}
+            onChange={(e) => setSelectedTruck(e.target.value)}
+            required
+          >
+            {trucks.map((truck) => (
+              <MenuItem key={truck._id} value={truck._id}>
+                {truck.truckNumber}
+              </MenuItem>
+            ))}
+          </TextField>
 
-        <TextField
-          fullWidth
-          label="Date"
-          type="date"
-          InputLabelProps={{ shrink: true }}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          margin="normal"
-          required
-        />
+          <TextField
+            fullWidth
+            label="Date"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            required
+          />
 
-        <Button
-          type="submit"
-          variant="contained"
-          color="primary"
-          fullWidth
-          disabled={submitting}
-          sx={{ mt: 2, mb: 4 }}
-        >
-          {submitting ? "Assigning..." : "Assign Truck"}
-        </Button>
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            fullWidth
+            disabled={submitting}
+          >
+            {submitting ? "Assigning..." : "Assign Truck"}
+          </Button>
+        </Stack>
       </form>
 
-      <Typography variant="h5" gutterBottom>
+      <Typography variant="h5" gutterBottom sx={{ mt: 4, mb: 2 }}>
         Existing Truck Assignments
       </Typography>
 
-      {/* Assignments Table */}
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Driver</TableCell>
-            <TableCell>Truck (Rego)</TableCell>
-            <TableCell>Date</TableCell>
-            <TableCell>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-
-        <TableBody>
-          {assignments.length === 0 && (
+      {/* Table responsive */}
+      <Box sx={{ overflowX: "auto" }}>
+        <Table>
+          <TableHead>
             <TableRow>
-              <TableCell colSpan={4} align="center">
-                No assignments found.
-              </TableCell>
+              <TableCell>Driver</TableCell>
+              <TableCell>Truck (Rego)</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
-          )}
-
-          {assignments.map((assignment) => (
-            <TableRow key={assignment._id}>
-              <TableCell>{assignment.driverId.name}</TableCell>
-              <TableCell>{assignment.truckId.truckNumber}</TableCell>
-              <TableCell>{new Date(assignment.date).toLocaleDateString()}</TableCell>
-              <TableCell>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => openEditDialog(assignment)}
-                  sx={{ mr: 1 }}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  color="error"
-                  onClick={() => handleDelete(assignment._id)}
-                >
-                  Delete
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {assignments.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} align="center">
+                  No assignments found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              assignments.map((assignment) => (
+                <TableRow key={assignment._id}>
+                  <TableCell>{assignment.driverId.name}</TableCell>
+                  <TableCell>{assignment.truckId.truckNumber}</TableCell>
+                  <TableCell>
+                    {new Date(assignment.date).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <Stack
+                      direction={isMobile ? "column" : "row"}
+                      spacing={isMobile ? 1 : 1}
+                    >
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        fullWidth={isMobile}
+                        onClick={() => openEditDialog(assignment)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        color="error"
+                        fullWidth={isMobile}
+                        onClick={() => handleDelete(assignment._id)}
+                      >
+                        Delete
+                      </Button>
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Box>
 
       {/* Edit Dialog */}
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Edit Truck Assignment</DialogTitle>
         <DialogContent>
-          <TextField
-            select
-            label="Driver"
-            name="driverId"
-            value={editData?.driverId || ""}
-            onChange={handleEditChange}
-            fullWidth
-            margin="normal"
-          >
-            {drivers.map((d) => (
-              <MenuItem key={d._id} value={d._id}>
-                {d.name}
-              </MenuItem>
-            ))}
-          </TextField>
+          <Stack spacing={2} mt={1}>
+            <TextField
+              select
+              label="Driver"
+              name="driverId"
+              value={editData?.driverId || ""}
+              onChange={handleEditChange}
+              fullWidth
+            >
+              {drivers.map((d) => (
+                <MenuItem key={d._id} value={d._id}>
+                  {d.name}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            select
-            label="Truck"
-            name="truckId"
-            value={editData?.truckId || ""}
-            onChange={handleEditChange}
-            fullWidth
-            margin="normal"
-          >
-            {trucks.map((t) => (
-              <MenuItem key={t._id} value={t._id}>
-                {t.truckNumber}
-              </MenuItem>
-            ))}
-          </TextField>
+            <TextField
+              select
+              label="Truck"
+              name="truckId"
+              value={editData?.truckId || ""}
+              onChange={handleEditChange}
+              fullWidth
+            >
+              {trucks.map((t) => (
+                <MenuItem key={t._id} value={t._id}>
+                  {t.truckNumber}
+                </MenuItem>
+              ))}
+            </TextField>
 
-          <TextField
-            label="Date"
-            type="date"
-            name="date"
-            value={editData?.date || ""}
-            onChange={handleEditChange}
-            fullWidth
-            margin="normal"
-            InputLabelProps={{ shrink: true }}
-          />
+            <TextField
+              label="Date"
+              type="date"
+              name="date"
+              value={editData?.date || ""}
+              onChange={handleEditChange}
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditOpen(false)}>Cancel</Button>

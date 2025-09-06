@@ -189,7 +189,7 @@ exports.deleteWorkLog = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    await log.remove();
+    await log.deleteOne();
 
     return res.status(200).json({
       success: true,

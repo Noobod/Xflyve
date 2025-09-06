@@ -63,13 +63,6 @@ export const updateTruckAssignment = (assignmentId, updatedData) =>
 export const deleteTruckAssignment = (assignmentId) =>
   api.delete(`/admin/truck-assignments/${assignmentId}`);
 
-// Permanent Truck Assignment APIs
-export const assignPermanentTruck = (assignmentData) =>
-  api.post("/permanent-assign/assign", assignmentData);
-
-export const getPermanentTruck = (driverId) =>
-  api.get(`/permanent-assign/${driverId}`);
-
 // ===== WORK LOGS (Driver) =====
 export const createWorkLog = (workLogData) => api.post("/worklogs", workLogData);
 export const updateWorkLog = (logId, updatedData) => api.put(`/worklogs/${logId}`, updatedData);
@@ -86,49 +79,67 @@ export const getWorkLogsByDriverAdmin = (driverId) =>
   api.get(`/worklogs/admin/${driverId}`);
 
 // ===== WORK DIARY =====
-// Upload Work Diary PDF (driver only, multipart/form-data)
-export const uploadWorkDiary = (formData) =>
-  api.post("/workDiaries/upload", formData, {
+export const uploadWorkDiary = async (formData) => {
+  const res = await api.post("/workDiaries/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return res.data.data; // always return the saved work diary object
+};
 
-// Get work diary PDF by ID (admin or driver)
-export const getWorkDiary = (workDiaryId) =>
-  api.get(`/workDiaries/${workDiaryId}`, { responseType: "blob" });
+export const getWorkDiary = async (workDiaryId) => {
+  const res = await api.get(`/workDiaries/${workDiaryId}`, { responseType: "blob" });
+  return res.data; // blob, keep as-is
+};
 
-// List all work diaries by driver (admin or driver)
-export const listWorkDiariesByDriver = (driverId) =>
-  api.get(`/workDiaries/driver/${driverId}`);
+export const listWorkDiariesByDriver = async (driverId) => {
+  const res = await api.get(`/workDiaries/driver/${driverId}`);
+  return res.data.data || []; // always return array
+};
 
-// Delete work diary by ID (you need to add this route if missing in backend)
-export const deleteWorkDiary = (workDiaryId) =>
-  api.delete(`/workDiaries/${workDiaryId}`);
+export const deleteWorkDiary = async (workDiaryId) => {
+  const res = await api.delete(`/workDiaries/${workDiaryId}`);
+  return res.data.data; // optional: return deleted object
+};
 
-// ===== POD ROUTES =====
-// ===== POD ROUTES =====
-export const fetchAllPods = () => api.get("/jobpods/admin/all");
+// ===== UPDATE NOTES =====
+export const updateWorkDiaryNotes = async (workDiaryId, payload) => {
+  // payload = { notes: "new notes text" }
+  const res = await api.put(`/workDiaries/${workDiaryId}`, payload);
+  return res.data.data; // return the updated work diary object
+};
 
-export const uploadPod = (jobId, formData) => {
-  // backend expects jobId inside formData
-  formData.append("jobId", jobId);
-  return api.post("/jobpods/upload", formData, {
+// ===== POD =====
+// Upload a POD (driver)
+export const uploadPod = async (formData) => {
+  const { data } = await api.post("/jobpods/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return data.data; // return saved POD object
 };
 
-export const updatePod = (jobId, formData) => {
-  formData.append("jobId", jobId);
-  return api.put(`/jobpods/upload/${jobId}`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+// List PODs by driver
+export const listPodsByDriver = async (driverId) => {
+  const { data } = await api.get(`/jobpods/driver/${driverId}`);
+  return data.data || [];
 };
 
-export const getPOD = (jobId) => {
-  return api.get(`/jobpods/${jobId}`, { responseType: "blob" });
+// Get POD by ID (for download) — returns Blob
+export const getPod = async (podId) => {
+  const { data } = await api.get(`/jobpods/${podId}`, { responseType: "blob" });
+  return data;
 };
 
-export const deletePod = (jobId) => {
-  return api.delete(`/jobpods/${jobId}`);
+// Update POD notes
+export const updatePodNotes = async (podId, payload) => {
+  // payload = { notes: "new notes text" }
+  const { data } = await api.put(`/jobpods/${podId}`, payload);
+  return data.data; // return updated POD object
+};
+
+// Delete POD
+export const deletePod = async (podId) => {
+  const { data } = await api.delete(`/jobpods/${podId}`);
+  return data.data;
 };
 
 export default api;

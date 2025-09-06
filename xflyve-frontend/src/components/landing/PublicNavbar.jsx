@@ -28,7 +28,6 @@ const PublicNavbar = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const handleScrollTo = (id) => {
@@ -43,20 +42,27 @@ const PublicNavbar = () => {
     <>
       <AppBar position="fixed" color="primary" elevation={1}>
         <Toolbar sx={{ justifyContent: "space-between" }}>
+          {/* Brand / Logo */}
           <Typography
             variant="h6"
             component="div"
-            sx={{ cursor: "pointer" }}
+            sx={{
+              cursor: "pointer",
+              fontSize: { xs: "1rem", sm: "1.2rem", md: "1.5rem" },
+              fontWeight: "bold",
+            }}
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
             Xflyve Logistics
           </Typography>
 
+          {/* Mobile Menu */}
           {isMobile ? (
             <>
               <IconButton
                 color="inherit"
                 edge="end"
+                aria-label="menu"
                 onClick={() => setDrawerOpen(true)}
               >
                 <MenuIcon />
@@ -66,7 +72,16 @@ const PublicNavbar = () => {
                 open={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
               >
-                <Box sx={{ width: 250 }} role="presentation">
+                <Box
+                  sx={{
+                    width: 250,
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                  }}
+                  role="presentation"
+                >
                   <List>
                     {navItems.map(({ label, id }) => (
                       <ListItem key={id} disablePadding>
@@ -75,23 +90,32 @@ const PublicNavbar = () => {
                         </ListItemButton>
                       </ListItem>
                     ))}
-                    <ListItem disablePadding>
-                      <ListItemButton onClick={() => navigate("/login")}>
-                        <ListItemText primary="Login" />
-                      </ListItemButton>
-                    </ListItem>
                   </List>
+                  <Box sx={{ p: 2 }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      onClick={() => navigate("/login")}
+                    >
+                      Login
+                    </Button>
+                  </Box>
                 </Box>
               </Drawer>
             </>
           ) : (
+            // Desktop Menu
             <Box>
               {navItems.map(({ label, id }) => (
                 <Button
                   key={id}
                   color="inherit"
                   onClick={() => handleScrollTo(id)}
-                  sx={{ textTransform: "none", fontWeight: "bold" }}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: "bold",
+                    ml: 1,
+                  }}
                 >
                   {label}
                 </Button>
@@ -108,6 +132,7 @@ const PublicNavbar = () => {
           )}
         </Toolbar>
       </AppBar>
+
       {/* Push content down so it's not hidden behind fixed AppBar */}
       <Toolbar />
     </>

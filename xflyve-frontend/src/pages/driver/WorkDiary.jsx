@@ -14,15 +14,30 @@ import {
   Button,
   TextField,
   IconButton,
+  Box,
+  Card,
+  CardContent,
+  CardActions,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  uploadWorkDiary,
+  listWorkDiariesByDriver,
+  deleteWorkDiary,
+  updateWorkDiaryNotes,
+} from "../../api";
 
 const WorkDiary = () => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   const [workDiaries, setWorkDiaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -32,45 +47,29 @@ const WorkDiary = () => {
   const [editId, setEditId] = useState(null);
   const [editNotes, setEditNotes] = useState("");
 
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchWorkDiaries = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(`/api/workDiaries/driver/${user._id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const data = await res.json();
-        if (data.success) {
-          setWorkDiaries(data.data);
-        } else {
-          setError(data.message || "Failed to load work diaries");
-        }
-      } catch {
-        setError("Failed to load work diaries");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWorkDiaries();
-  }, [user, token]);
-
-  // Upload handler unchanged
-  const handleFileChange = (e) => {
-    if (e.target.files.length > 0) setFile(e.target.files[0]);
+  // Fetch work diaries
+  const fetchWorkDiaries = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await listWorkDiariesByDriver(user._id);
+      setWorkDiaries(data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load work diaries");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (user) fetchWorkDiaries();
+  }, [user]);
+
+  const handleFileChange = (e) => setFile(e.target.files[0] || null);
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file) {
-      setError("Please select a PDF file to upload");
-      return;
-    }
+    if (!file) return setError("Please select a PDF file to upload");
     setUploading(true);
     setError("");
 
@@ -80,85 +79,46 @@ const WorkDiary = () => {
     formData.append("notes", notes);
 
     try {
-      const res = await fetch("/api/workDiaries/upload", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.success) {
-        setWorkDiaries((prev) => [...prev, data.data]);
-        setFile(null);
-        setNotes("");
-      } else {
-        setError(data.message || "Upload failed");
-      }
-    } catch {
-      setError("Server error during upload");
+      const uploaded = await uploadWorkDiary(formData);
+      setWorkDiaries((prev) => [...prev, uploaded]);
+      setFile(null);
+      setNotes("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  // Delete handler
   const handleDelete = async (id) => {
-    setError("");
     if (!window.confirm("Are you sure you want to delete this work diary?")) return;
     try {
-      const res = await fetch(`/api/workDiaries/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setWorkDiaries((prev) => prev.filter((wd) => wd._id !== id));
-      } else {
-        setError(data.message || "Failed to delete");
-      }
-    } catch {
-      setError("Server error during delete");
+      await deleteWorkDiary(id);
+      setWorkDiaries((prev) => prev.filter((wd) => wd._id !== id));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete");
     }
   };
 
-  // Start editing notes
   const startEdit = (id, currentNotes) => {
     setEditId(id);
     setEditNotes(currentNotes || "");
   };
 
-  // Cancel editing notes
   const cancelEdit = () => {
     setEditId(null);
     setEditNotes("");
   };
 
-  // Save edited notes
   const saveEdit = async (id) => {
-    setError("");
     try {
-      const res = await fetch(`/api/workDiaries/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ notes: editNotes }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setWorkDiaries((prev) =>
-          prev.map((wd) => (wd._id === id ? { ...wd, notes: editNotes } : wd))
-        );
-        cancelEdit();
-      } else {
-        setError(data.message || "Failed to update notes");
-      }
-    } catch {
-      setError("Server error during update");
+      const updated = await updateWorkDiaryNotes(id, { notes: editNotes });
+      setWorkDiaries((prev) =>
+        prev.map((wd) => (wd._id === id ? { ...wd, notes: updated.notes } : wd))
+      );
+      cancelEdit();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update notes");
     }
   };
 
@@ -168,20 +128,12 @@ const WorkDiary = () => {
         My Work Diary Uploads
       </Typography>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      {error && <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>{error}</Alert>}
 
+      {/* Upload Form */}
       <Paper sx={{ p: 3, mb: 4 }}>
         <form onSubmit={handleUpload}>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            style={{ marginBottom: 16 }}
-          />
+          <input type="file" accept="application/pdf" onChange={handleFileChange} style={{ marginBottom: 16 }} />
           <TextField
             label="Notes (optional)"
             fullWidth
@@ -201,30 +153,63 @@ const WorkDiary = () => {
         <CircularProgress />
       ) : workDiaries.length === 0 ? (
         <Typography>No work diary uploads found.</Typography>
+      ) : isMobile ? (
+        // Mobile: card layout
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {workDiaries.map((wd) => (
+            <Card key={wd._id} variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle2" color="textSecondary">Uploaded At:</Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  {new Date(wd.uploadDate || wd.createdAt).toLocaleString()}
+                </Typography>
+
+                <Typography variant="subtitle2" color="textSecondary">Notes:</Typography>
+                {editId === wd._id ? (
+                  <TextField
+                    multiline
+                    rows={2}
+                    fullWidth
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    size="small"
+                    sx={{ mb: 1 }}
+                  />
+                ) : (
+                  <Typography variant="body2" sx={{ mb: 1 }}>{wd.notes || "-"}</Typography>
+                )}
+              </CardContent>
+              <CardActions>
+                {editId === wd._id ? (
+                  <>
+                    <IconButton onClick={() => saveEdit(wd._id)} size="small"><SaveIcon /></IconButton>
+                    <IconButton onClick={cancelEdit} color="error" size="small"><CancelIcon /></IconButton>
+                  </>
+                ) : (
+                  <>
+                    <IconButton onClick={() => startEdit(wd._id, wd.notes)} size="small"><EditIcon /></IconButton>
+                    <IconButton onClick={() => handleDelete(wd._id)} color="error" size="small"><DeleteIcon /></IconButton>
+                  </>
+                )}
+              </CardActions>
+            </Card>
+          ))}
+        </Box>
       ) : (
-        <TableContainer component={Paper} elevation={3}>
+        // Desktop: table layout
+        <TableContainer component={Paper}>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                  Uploaded At
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                  Notes
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                  Actions
-                </TableCell>
+                <TableCell align="center">Uploaded At</TableCell>
+                <TableCell align="center">Notes</TableCell>
+                <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
-
             <TableBody>
               {workDiaries.map((wd) => (
                 <TableRow key={wd._id} hover>
-                  <TableCell align="center">
-                    {new Date(wd.uploadDate || wd.uploadedAt || wd.createdAt).toLocaleString()}
-                  </TableCell>
-
+                  <TableCell align="center">{new Date(wd.uploadDate || wd.createdAt).toLocaleString()}</TableCell>
                   <TableCell align="center">
                     {editId === wd._id ? (
                       <TextField
@@ -238,44 +223,16 @@ const WorkDiary = () => {
                       wd.notes || "-"
                     )}
                   </TableCell>
-
                   <TableCell align="center">
                     {editId === wd._id ? (
                       <>
-                        <IconButton
-                          aria-label="save"
-                          color="primary"
-                          onClick={() => saveEdit(wd._id)}
-                          size="small"
-                        >
-                          <SaveIcon />
-                        </IconButton>
-                        <IconButton
-                          aria-label="cancel"
-                          color="error"
-                          onClick={cancelEdit}
-                          size="small"
-                        >
-                          <CancelIcon />
-                        </IconButton>
+                        <IconButton onClick={() => saveEdit(wd._id)} size="small"><SaveIcon /></IconButton>
+                        <IconButton onClick={cancelEdit} color="error" size="small"><CancelIcon /></IconButton>
                       </>
                     ) : (
                       <>
-                        <IconButton
-                          aria-label="edit"
-                          onClick={() => startEdit(wd._id, wd.notes)}
-                          size="small"
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          aria-label="delete"
-                          onClick={() => handleDelete(wd._id)}
-                          color="error"
-                          size="small"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        <IconButton onClick={() => startEdit(wd._id, wd.notes)} size="small"><EditIcon /></IconButton>
+                        <IconButton onClick={() => handleDelete(wd._id)} color="error" size="small"><DeleteIcon /></IconButton>
                       </>
                     )}
                   </TableCell>

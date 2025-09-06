@@ -13,15 +13,10 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Redirect logged-in users away from login page
   useEffect(() => {
     if (user) {
-      // Redirect based on role
-      if (user.role === "admin") {
-        navigate("/home");
-      } else if (user.role === "driver") {
-        navigate("/driver-home");
-      }
+      if (user.role === "admin") navigate("/home");
+      else if (user.role === "driver") navigate("/driver-home");
     }
   }, [user, navigate]);
 
@@ -33,35 +28,35 @@ const LoginPage = () => {
     try {
       const res = await login({ email, password });
       const { token, data } = res.data;
+      loginUser(data, token);
 
-      loginUser(data, token); // Save user + token in context + localStorage
-
-      // Redirect based on role after login
-      if (data.role === "admin") {
-        navigate("/home");
-      } else if (data.role === "driver") {
-        navigate("/driver-home");
-      } else {
-        navigate("/"); // fallback route
-      }
+      if (data.role === "admin") navigate("/home");
+      else if (data.role === "driver") navigate("/driver-home");
+      else navigate("/");
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Login failed. Please check credentials."
-      );
+      setError(err.response?.data?.message || "Login failed. Please check credentials.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8, p: 4, boxShadow: 3, borderRadius: 2 }}>
-        <Typography variant="h4" align="center" gutterBottom>
+    <Container maxWidth="xs">
+      <Box
+        sx={{
+          mt: { xs: 6, sm: 10 },
+          p: { xs: 3, sm: 4 },
+          boxShadow: 3,
+          borderRadius: 2,
+          bgcolor: "background.paper",
+        }}
+      >
+        <Typography variant="h4" align="center" gutterBottom sx={{ fontWeight: "bold" }}>
           Xflyve Login
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2, fontSize: "0.9rem" }}>
             {error}
           </Alert>
         )}
@@ -76,6 +71,7 @@ const LoginPage = () => {
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={loading}
+            autoComplete="username"
           />
 
           <TextField
@@ -88,6 +84,7 @@ const LoginPage = () => {
             onChange={(e) => setPassword(e.target.value)}
             required
             disabled={loading}
+            autoComplete="current-password"
           />
 
           <Button
@@ -95,7 +92,7 @@ const LoginPage = () => {
             variant="contained"
             color="primary"
             fullWidth
-            sx={{ mt: 2 }}
+            sx={{ mt: 3, py: 1.5 }}
             disabled={loading}
           >
             {loading ? "Logging in..." : "Login"}

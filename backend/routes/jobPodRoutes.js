@@ -2,57 +2,67 @@ const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
-const { requireDriver, requireAdmin } = require("../middlewares/roleMiddleware");
-const upload = require("../middlewares/jobPodMiddleware");
+const {
+  requireDriver,
+  requireAdmin,
+  requireDriverOrAdmin,
+} = require("../middlewares/roleMiddleware");
+const upload = require("../config/multer"); // multer
 const jobPodController = require("../controllers/jobPodController");
-const validateMongoId = require("../validators/validateMongoId");
+const validateRequest = require("../middlewares/validateRequest");
+const {
+  uploadPODValidator,
+  podIdValidator,
+  podDriverIdParamValidator,
+  updatePODNotesValidator,
+} = require("../validators/jobPodValidator");
 
 router.use(authMiddleware);
 
-/**
- * Upload a POD PDF file for a job
- * Only driver assigned or admin allowed
- */
+// Driver routes
 router.post(
   "/upload",
   requireDriver,
   upload.single("podFile"),
-  jobPodController.uploadPODByDriver
+  ...uploadPODValidator,
+  validateRequest,
+  jobPodController.uploadPOD
 );
 
-
-/**
- * Get POD file for a job
- * Only admin or driver who uploaded the POD
- */
 router.get(
-  "/:jobId",
-  validateMongoId("jobId"),
+  "/:podId",
+  requireDriverOrAdmin,
+  ...podIdValidator,
+  validateRequest,
   jobPodController.getPOD
 );
 
-// ** New: Admin get all PODs with driver info **
 router.get(
-  "/admin/all",
-  requireAdmin,
-  jobPodController.getAllPODsForAdmin
+  "/driver/:driverId",
+  requireDriverOrAdmin,
+  ...podDriverIdParamValidator,
+  validateRequest,
+  jobPodController.listPODsByDriver
 );
 
-module.exports = router;
+router.put(
+  "/:podId",
+  requireDriverOrAdmin,
+  ...podIdValidator,
+  ...updatePODNotesValidator,
+  validateRequest,
+  jobPodController.updatePOD
+);
 
-// Delete POD for a job
 router.delete(
-  "/:jobId",
-  requireDriver, // or requireAdmin if admin can also delete
-  validateMongoId("jobId"),
+  "/:podId",
+  requireDriverOrAdmin,
+  ...podIdValidator,
+  validateRequest,
   jobPodController.deletePOD
 );
 
-// Update/Overwrite POD for a job
-router.put(
-  "/upload/:jobId",
-  requireDriver,
-  validateMongoId("jobId"),
-  upload.single("podFile"),
-  jobPodController.updatePOD
-);
+// Admin route
+router.get("/admin/all", requireAdmin, jobPodController.listAllPODs);
+
+module.exports = router;

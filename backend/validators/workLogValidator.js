@@ -2,7 +2,6 @@
 const { body } = require("express-validator");
 
 exports.validateWorkLog = [
-  body("driverId").isMongoId().withMessage("Valid driverId is required"),
   body("date").isISO8601().toDate().withMessage("Valid date is required"),
   body("hours").optional().isFloat({ min: 0 }).withMessage("Hours must be a non-negative number"),
   body("kilometers").optional().isFloat({ min: 0 }).withMessage("Kilometers must be a non-negative number"),

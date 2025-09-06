@@ -143,7 +143,10 @@ exports.markJobComplete = async (req, res) => {
 // @access  Driver
 exports.getMyJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ assignedTo: req.user.id }).lean();
+    const jobs = await Job.find({ assignedTo: req.user.id })
+      .populate("assignedTruck", "truckNumber") // ✅ Added populate here
+      .lean();
+
     res.status(200).json({ status: "success", results: jobs.length, data: jobs });
   } catch (err) {
     logger.error("Get Driver Jobs Error: %o", err);
@@ -157,7 +160,10 @@ exports.getMyJobs = async (req, res) => {
 exports.getAssignedJobs = async (req, res) => {
   try {
     const driverId = req.params.driverId;
-    const jobs = await Job.find({ assignedTo: driverId }).lean();
+    const jobs = await Job.find({ assignedTo: driverId })
+      .populate("assignedTruck", "truckNumber") // ✅ Added populate here
+      .lean();
+
     res.status(200).json({ status: "success", results: jobs.length, data: jobs });
   } catch (err) {
     logger.error("Get Assigned Jobs Error: %o", err);

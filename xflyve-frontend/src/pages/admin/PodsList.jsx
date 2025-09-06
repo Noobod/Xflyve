@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
+  Button,
   Table,
   TableHead,
   TableRow,
@@ -9,197 +10,211 @@ import {
   TableBody,
   CircularProgress,
   Alert,
-  Button,
-  Paper,
-  TextField,
   MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
+  Stack,
+  Paper,
 } from "@mui/material";
-import api from "../../api"; // axios instance
 
-const PodsList = () => {
-  const [pods, setPods] = useState([]);
-  const [filteredPods, setFilteredPods] = useState([]);
+import { getAllDrivers, listPodsByDriver, deletePod, getPod } from "../../api";
+
+const AdminPODs = () => {
   const [drivers, setDrivers] = useState([]);
+  const [selectedDriver, setSelectedDriver] = useState("");
+  const [pods, setPods] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const [filterDriver, setFilterDriver] = useState("");
-  const [filterDate, setFilterDate] = useState("");
-
-  const fetchPods = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api.get("/jobpods/admin/all");
-      if (res.data.status === "success") {
-        setPods(res.data.data);
-        setFilteredPods(res.data.data);
-      } else {
-        setError(res.data.message || "Failed to fetch PODs");
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || "Server error fetching PODs");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDrivers = async () => {
-    try {
-      const res = await api.get("/drivers/all");
-      if (res.data.status === "success") {
-        setDrivers(res.data.data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch drivers", err);
-    }
-  };
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    fetchPods();
+    const fetchDrivers = async () => {
+      try {
+        const res = await getAllDrivers();
+        if (res.data.status === "success") setDrivers(res.data.data);
+        else setError("Failed to load drivers");
+      } catch (err) {
+        setError(err.response?.data?.message || "Server error loading drivers");
+      }
+    };
     fetchDrivers();
   }, []);
 
-  const handleDownload = async (jobId, jobName = "pod") => {
+  useEffect(() => {
+    setError("");
+    setSuccess("");
+    if (!selectedDriver) return setPods([]);
+
+    const fetchPods = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const items = await listPodsByDriver(selectedDriver);
+        setPods(items);
+      } catch (err) {
+        setError(err.response?.data?.message || "Server error fetching PODs");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPods();
+  }, [selectedDriver]);
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this POD?")) return;
     try {
-      const res = await api.get(`/jobpods/${jobId}`, { responseType: "blob" });
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      await deletePod(id);
+      setSuccess("POD deleted");
+      setPods((prev) => prev.filter((d) => d._id !== id));
+    } catch {
+      setError("Failed to delete POD");
+    }
+  };
+
+  const handleDownload = async (pod) => {
+    try {
+      const blob = await getPod(pod._id);
+      const driverName =
+        drivers.find((d) => d._id === pod.driverId)?.name || "Driver";
+      const dateStr = new Date(pod.uploadDate).toISOString().slice(0, 10);
+      const filename = `POD-${driverName.replace(/\s+/g, "_")}-${dateStr}.pdf`;
       const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `${jobName}.pdf`);
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Download POD error:", err);
-      alert(err.response?.data?.message || "Failed to download POD");
+    } catch {
+      setError("Failed to download POD");
     }
   };
-
-  const handleDelete = async (podId) => {
-    if (!window.confirm("Are you sure you want to delete this POD?")) return;
-    try {
-      await api.delete(`/jobpods/${podId}`);
-      fetchPods();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to delete POD");
-    }
-  };
-
-  const handleFilter = () => {
-    let filtered = [...pods];
-    if (filterDriver) {
-      filtered = filtered.filter((p) => p.driverId?._id === filterDriver);
-    }
-    if (filterDate) {
-      filtered = filtered.filter((p) => p.uploadedAt?.split("T")[0] === filterDate);
-    }
-    setFilteredPods(filtered);
-  };
-
-  useEffect(() => {
-    handleFilter();
-  }, [filterDriver, filterDate, pods]);
 
   return (
-    <Box sx={{ p: 4, maxWidth: "1200px", mx: "auto" }}>
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1200, mx: "auto" }}>
       <Typography variant="h4" gutterBottom>
-        PODs Uploaded by Drivers
+        POD Management (Admin)
       </Typography>
-
-      {/* Filters */}
-      <Box display="flex" gap={2} mb={2} flexWrap="wrap">
-        <TextField
-          select
-          label="Filter by Driver"
-          value={filterDriver}
-          onChange={(e) => setFilterDriver(e.target.value)}
-          size="small"
-        >
-          <MenuItem value="">All</MenuItem>
-          {drivers.map((d) => (
-            <MenuItem key={d._id} value={d._id}>
-              {d.name}
-            </MenuItem>
-          ))}
-        </TextField>
-
-        <TextField
-          type="date"
-          label="Filter by Date"
-          value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-          InputLabelProps={{ shrink: true }}
-          size="small"
-        />
-      </Box>
 
       {error && (
         <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
+      {success && (
+        <Alert severity="success" onClose={() => setSuccess("")} sx={{ mb: 2 }}>
+          {success}
+        </Alert>
+      )}
+
+      <FormControl fullWidth sx={{ mb: 3 }}>
+        <InputLabel id="driver-select-label">Select Driver</InputLabel>
+        <Select
+          labelId="driver-select-label"
+          value={selectedDriver}
+          label="Select Driver"
+          onChange={(e) => setSelectedDriver(e.target.value)}
+        >
+          <MenuItem value="">
+            <em>None</em>
+          </MenuItem>
+          {drivers.map((driver) => (
+            <MenuItem key={driver._id} value={driver._id}>
+              {driver.name} ({driver.email})
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
 
       {loading ? (
         <Box display="flex" justifyContent="center" py={5}>
           <CircularProgress />
         </Box>
-      ) : filteredPods.length === 0 ? (
-        <Typography>No PODs found.</Typography>
+      ) : pods.length === 0 ? (
+        <Typography>No PODs found for selected driver.</Typography>
       ) : (
-        <Paper elevation={3}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Title</TableCell>
-                <TableCell>Truck Number</TableCell>
-                <TableCell>Job Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Driver Name</TableCell>
-                <TableCell>Uploaded At</TableCell>
-                <TableCell align="center">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredPods.map((pod) => (
-                <TableRow key={pod._id}>
-                  <TableCell>{pod.jobId?.title || "N/A"}</TableCell>
-                  <TableCell>{pod.jobId?.assignedTruck?.truckNumber || "N/A"}</TableCell>
-                  <TableCell>{pod.jobId?.jobType || "-"}</TableCell>
-                  <TableCell>{pod.jobId?.status || "-"}</TableCell>
-                  <TableCell>{pod.driverId?.name || "Unknown"}</TableCell>
-                  <TableCell>
-                    {pod.uploadedAt ? new Date(pod.uploadedAt).toLocaleString() : "-"}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Button
-                      variant="contained"
-                      size="small"
-                      color="primary"
-                      onClick={() => handleDownload(pod.jobId?._id, pod.jobId?.title || "pod")}
-                      sx={{ mr: 1 }}
-                    >
-                      Download
-                    </Button>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      color="error"
-                      onClick={() => handleDelete(pod._id)}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
+        <>
+          {/* Table for larger screens */}
+          <Box sx={{ display: { xs: "none", sm: "block" }, overflowX: "auto" }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Upload Date</TableCell>
+                  <TableCell>Driver</TableCell>
+                  <TableCell>Notes</TableCell>
+                  <TableCell align="center">Actions</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+              </TableHead>
+              <TableBody>
+                {pods.map((pod) => (
+                  <TableRow key={pod._id}>
+                    <TableCell>
+                      {new Date(pod.uploadDate || Date.now()).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {drivers.find((d) => d._id === pod.driverId)?.name || "-"}
+                    </TableCell>
+                    <TableCell>{pod.notes || "-"}</TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleDownload(pod)}
+                        >
+                          Download
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          onClick={() => handleDelete(pod._id)}
+                        >
+                          Delete
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+
+          {/* Card layout for mobile */}
+          <Stack spacing={2} sx={{ display: { xs: "block", sm: "none" } }}>
+            {pods.map((pod) => (
+              <Paper key={pod._id} sx={{ p: 2 }}>
+                <Typography variant="subtitle1">
+                  Upload Date: {new Date(pod.uploadDate || Date.now()).toLocaleDateString()}
+                </Typography>
+                <Typography variant="body2">
+                  Driver: {drivers.find((d) => d._id === pod.driverId)?.name || "-"}
+                </Typography>
+                <Typography variant="body2">Notes: {pod.notes || "-"}</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mt={1}>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => handleDownload(pod)}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={() => handleDelete(pod._id)}
+                  >
+                    Delete
+                  </Button>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+        </>
       )}
     </Box>
   );
 };
 
-export default PodsList;
+export default AdminPODs;

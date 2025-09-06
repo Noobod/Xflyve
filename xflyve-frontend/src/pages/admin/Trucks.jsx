@@ -79,18 +79,11 @@ const Trucks = () => {
     });
   };
 
-  const handleDeleteClick = (id) => {
-    setDeleteTruckId(id);
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteTruckId(null);
-  };
-
+  const handleDeleteClick = (id) => setDeleteTruckId(id);
+  const handleDeleteCancel = () => setDeleteTruckId(null);
   const handleDeleteConfirm = async () => {
     if (!deleteTruckId) return;
-    setError("");
-    setSuccess("");
+    setError(""); setSuccess("");
     try {
       await deleteTruck(deleteTruckId);
       setSuccess("Truck deleted successfully");
@@ -102,28 +95,26 @@ const Trucks = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
+    <Container maxWidth="md" sx={{ py: { xs: 2, sm: 4 } }}>
       <Typography variant="h4" align="center" gutterBottom fontWeight="bold">
         Manage Trucks
       </Typography>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError("")} sx={{ mb: 3, textAlign: "center" }}>
-          {error}
-        </Alert>
-      )}
-      {success && (
-        <Alert severity="success" onClose={() => setSuccess("")} sx={{ mb: 3, textAlign: "center" }}>
-          {success}
-        </Alert>
-      )}
+      {error && <Alert severity="error" onClose={() => setError("")} sx={{ mb: 3, textAlign: "center" }}>{error}</Alert>}
+      {success && <Alert severity="success" onClose={() => setSuccess("")} sx={{ mb: 3, textAlign: "center" }}>{success}</Alert>}
 
+      {/* Form */}
       <Box
         component="form"
         onSubmit={handleSubmit}
         sx={{
-          display: "flex", flexDirection: "column", gap: 2,
-          mb: 5, p: 3, boxShadow: 3, borderRadius: 2,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          mb: 4,
+          p: 3,
+          boxShadow: 3,
+          borderRadius: 2,
           backgroundColor: "background.paper",
         }}
       >
@@ -160,80 +151,64 @@ const Trucks = () => {
           fullWidth
           inputProps={{ style: { textAlign: "center" } }}
         >
-          {statusOptions.map((option) => (
+          {statusOptions.map(option => (
             <MenuItem key={option} value={option}>
               {option.charAt(0).toUpperCase() + option.slice(1)}
             </MenuItem>
           ))}
         </TextField>
 
-        <Button type="submit" variant="contained" color="primary" size="large">
-          {editTruckId ? "Update Truck" : "Create Truck"}
-        </Button>
-        {editTruckId && (
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => {
-              setEditTruckId(null);
-              setFormData({ truckNumber: "", capacity: "", status: "available" });
-              setError("");
-              setSuccess("");
-            }}
-          >
-            Cancel Edit
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1 }}>
+          <Button type="submit" fullWidth variant="contained" size="large">
+            {editTruckId ? "Update Truck" : "Create Truck"}
           </Button>
-        )}
+          {editTruckId && (
+            <Button
+              variant="outlined"
+              fullWidth
+              color="secondary"
+              onClick={() => {
+                setEditTruckId(null);
+                setFormData({ truckNumber: "", capacity: "", status: "available" });
+                setError(""); setSuccess("");
+              }}
+            >
+              Cancel Edit
+            </Button>
+          )}
+        </Box>
       </Box>
 
-      <TableContainer component={Paper} elevation={3}>
-        <Table aria-label="trucks table" sx={{ minWidth: 300 }}>
+      {/* Table for desktop, Cards for mobile */}
+      <TableContainer component={Paper} elevation={3} sx={{ overflowX: "auto", display: { xs: "none", sm: "block" } }}>
+        <Table>
           <TableHead>
             <TableRow>
-              {["Truck Number", "Capacity", "Status", "Actions"].map((header) => (
+              {["Truck Number", "Capacity", "Status", "Actions"].map(header => (
                 <TableCell key={header} align="center" sx={{ fontWeight: "bold", bgcolor: "grey.100" }}>
                   {header}
                 </TableCell>
               ))}
             </TableRow>
           </TableHead>
-
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
-                  Loading trucks...
-                </TableCell>
+                <TableCell colSpan={4} align="center">Loading trucks...</TableCell>
               </TableRow>
             ) : trucks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ fontStyle: "italic" }}>
-                  No trucks found.
-                </TableCell>
+                <TableCell colSpan={4} align="center" sx={{ fontStyle: "italic" }}>No trucks found.</TableCell>
               </TableRow>
             ) : (
-              trucks.map((truck) => (
+              trucks.map(truck => (
                 <TableRow key={truck._id} hover>
                   <TableCell align="center">{truck.truckNumber}</TableCell>
                   <TableCell align="center">{truck.capacity}</TableCell>
                   <TableCell align="center" sx={{ textTransform: "capitalize" }}>{truck.status}</TableCell>
                   <TableCell align="center">
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => handleEdit(truck)}
-                      sx={{ mr: 1 }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      size="small"
-                      onClick={() => handleDeleteClick(truck._id)}
-                    >
-                      Delete
-                    </Button>
+                    <Button variant="contained" size="small" onClick={() => handleEdit(truck)} sx={{ mr: 1 }}>Edit</Button>
+                    <Button variant="contained" color="error" size="small" onClick={() => handleDeleteClick(truck._id)}>Delete</Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -242,6 +217,28 @@ const Trucks = () => {
         </Table>
       </TableContainer>
 
+      {/* Mobile cards */}
+      <Box sx={{ display: { xs: "block", sm: "none" } }}>
+        {loading ? (
+          <Typography align="center">Loading trucks...</Typography>
+        ) : trucks.length === 0 ? (
+          <Typography align="center" sx={{ fontStyle: "italic" }}>No trucks found.</Typography>
+        ) : (
+          trucks.map(truck => (
+            <Paper key={truck._id} sx={{ p: 2, mb: 2 }}>
+              <Typography><b>Truck:</b> {truck.truckNumber}</Typography>
+              <Typography><b>Capacity:</b> {truck.capacity}</Typography>
+              <Typography sx={{ textTransform: "capitalize" }}><b>Status:</b> {truck.status}</Typography>
+              <Box sx={{ mt: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>
+                <Button size="small" variant="contained" onClick={() => handleEdit(truck)}>Edit</Button>
+                <Button size="small" variant="contained" color="error" onClick={() => handleDeleteClick(truck._id)}>Delete</Button>
+              </Box>
+            </Paper>
+          ))
+        )}
+      </Box>
+
+      {/* Delete Confirmation Dialog */}
       <Dialog open={Boolean(deleteTruckId)} onClose={handleDeleteCancel}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
@@ -250,12 +247,8 @@ const Trucks = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-          <Button onClick={handleDeleteCancel} variant="outlined">
-            Cancel
-          </Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
-            Delete
-          </Button>
+          <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
         </DialogActions>
       </Dialog>
     </Container>

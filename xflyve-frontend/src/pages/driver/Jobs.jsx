@@ -14,6 +14,7 @@ import {
   Button,
   Select,
   MenuItem,
+  Box,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { getJobsByDriver, updateJob } from "../../api";
@@ -59,7 +60,7 @@ const DriverJobs = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
         My Assigned Jobs
       </Typography>
@@ -75,73 +76,96 @@ const DriverJobs = () => {
       ) : jobs.length === 0 ? (
         <Typography>No jobs assigned to you currently.</Typography>
       ) : (
-        <TableContainer component={Paper} elevation={3}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                {[
-                  "Title",
-                  "Truck",
-                  "Pickup Location",
-                  "Delivery Location",
-                  "Job Type",
-                  "Status",
-                  "POD",
-                  "Work Diary",
-                ].map((header) => (
-                  <TableCell key={header} align="center" sx={{ fontWeight: "bold" }}>
-                    {header}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-
-            <TableBody>
-              {jobs.map((job) => (
-                <TableRow key={job._id} hover>
-                  <TableCell align="center">{job.title}</TableCell>
-                  <TableCell align="center">{job.truckNumber || "-"}</TableCell>
-                  <TableCell align="center">{job.pickupLocation}</TableCell>
-                  <TableCell align="center">{job.deliveryLocation}</TableCell>
-                  <TableCell align="center" sx={{ textTransform: "capitalize" }}>
-                    {job.jobType}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Select
-                      value={job.status}
-                      onChange={(e) => handleStatusChange(job._id, e.target.value)}
-                      size="small"
+        // Make table scrollable on small screens
+        <Box sx={{ overflowX: "auto" }}>
+          <TableContainer component={Paper} elevation={3}>
+            <Table sx={{ minWidth: 650 }}>
+              <TableHead>
+                <TableRow>
+                  {[
+                    "Title",
+                    "Truck",
+                    "Pickup Location",
+                    "Delivery Location",
+                    "Job Type",
+                    "Status",
+                    "POD",
+                    "Work Diary",
+                  ].map((header) => (
+                    <TableCell
+                      key={header}
+                      align="center"
+                      sx={{
+                        fontWeight: "bold",
+                        whiteSpace: "nowrap", // prevent breaking header text
+                      }}
                     >
-                      <MenuItem value="pending">Pending</MenuItem>
-                      <MenuItem value="in-progress">In Progress</MenuItem>
-                      <MenuItem value="completed">Completed</MenuItem>
-                    </Select>
-                  </TableCell>
-
-                  <TableCell align="center">
-                    <Button
-                      variant={job.podUploaded ? "contained" : "outlined"}
-                      color="primary"
-                      onClick={() => navigate(`/jobs/${job._id}/upload-pod`)}
-                    >
-                      {job.podUploaded ? "Edit POD" : "Upload POD"}
-                    </Button>
-                  </TableCell>
-
-                  <TableCell align="center">
-                    <Button
-                      variant={job.workDiaryUploaded ? "contained" : "outlined"}
-                      color="primary"
-                      onClick={() => navigate(`/jobs/${job._id}/work-diary`)}
-                    >
-                      {job.workDiaryUploaded ? "Edit Diary" : "Upload Diary"}
-                    </Button>
-                  </TableCell>
+                      {header}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+
+              <TableBody>
+                {jobs.map((job) => (
+                  <TableRow key={job._id} hover>
+                    <TableCell align="center">{job.title}</TableCell>
+                    <TableCell align="center">
+                      {job.assignedTruck?.truckNumber || "-"}
+                    </TableCell>
+                    <TableCell align="center">{job.pickupLocation}</TableCell>
+                    <TableCell align="center">{job.deliveryLocation}</TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{ textTransform: "capitalize" }}
+                    >
+                      {job.jobType}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Select
+                        value={job.status}
+                        onChange={(e) =>
+                          handleStatusChange(job._id, e.target.value)
+                        }
+                        size="small"
+                      >
+                        <MenuItem value="pending">Pending</MenuItem>
+                        <MenuItem value="in-progress">In Progress</MenuItem>
+                        <MenuItem value="completed">Completed</MenuItem>
+                      </Select>
+                    </TableCell>
+
+                    <TableCell align="center">
+                      <Button
+                        variant={job.podUploaded ? "contained" : "outlined"}
+                        color="primary"
+                        size="small"
+                        onClick={() =>
+                          navigate(`/driver/pods/upload/${job._id}`)
+                        }
+                      >
+                        {job.podUploaded ? "Edit POD" : "Upload POD"}
+                      </Button>
+                    </TableCell>
+
+                    <TableCell align="center">
+                      <Button
+                        variant={job.workDiaryUploaded ? "contained" : "outlined"}
+                        color="primary"
+                        size="small"
+                        onClick={() =>
+                          navigate(`/driver/work-diary/${job._id}`)
+                        }
+                      >
+                        {job.workDiaryUploaded ? "Edit Diary" : "Upload Diary"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
       )}
     </Container>
   );

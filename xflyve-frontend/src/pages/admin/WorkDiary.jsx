@@ -14,13 +14,15 @@ import {
   Select,
   InputLabel,
   FormControl,
+  Paper,
+  Stack,
 } from "@mui/material";
 
 import {
   getAllDrivers,
   listWorkDiariesByDriver,
   deleteWorkDiary,
-  getWorkDiary, // Make sure this is imported from your api.js
+  getWorkDiary,
 } from "../../api";
 
 const WorkDiary = () => {
@@ -60,12 +62,8 @@ const WorkDiary = () => {
       setLoading(true);
       setError("");
       try {
-        const res = await listWorkDiariesByDriver(selectedDriver);
-        if (res.data.success) {
-          setDiaries(res.data.data);
-        } else {
-          setError(res.data.message || "Failed to fetch work diaries");
-        }
+        const items = await listWorkDiariesByDriver(selectedDriver);
+        setDiaries(items);
       } catch (err) {
         setError(err.response?.data?.message || "Server error fetching diaries");
       } finally {
@@ -88,18 +86,15 @@ const WorkDiary = () => {
     }
   };
 
-  // Updated download function to download with driver name and date in filename
   const handleDownload = async (workDiary) => {
     try {
-      const blobResponse = await getWorkDiary(workDiary._id);
-      const blob = new Blob([blobResponse.data], { type: "application/pdf" });
+      const blob = await getWorkDiary(workDiary._id);
 
-      // Create a filename like WorkDiary-DriverName-YYYY-MM-DD.pdf
-      const driverName = drivers.find((d) => d._id === workDiary.driverId)?.name || "Driver";
+      const driverName =
+        drivers.find((d) => d._id === workDiary.driverId)?.name || "Driver";
       const dateStr = new Date(workDiary.uploadDate).toISOString().slice(0, 10);
       const filename = `WorkDiary-${driverName.replace(/\s+/g, "_")}-${dateStr}.pdf`;
 
-      // Create a temporary link and click it to download
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = filename;
@@ -112,8 +107,8 @@ const WorkDiary = () => {
   };
 
   return (
-    <Box sx={{ p: 4, maxWidth: "1200px", mx: "auto" }}>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: "1200px", mx: "auto" }}>
+      <Typography variant="h4" gutterBottom textAlign="center">
         Work Diary Management (Admin)
       </Typography>
 
@@ -152,43 +147,69 @@ const WorkDiary = () => {
           <CircularProgress />
         </Box>
       ) : diaries.length === 0 ? (
-        <Typography>No work diaries found for selected driver.</Typography>
+        <Typography textAlign="center">No work diaries found for selected driver.</Typography>
       ) : (
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Upload Date</TableCell>
-              <TableCell>Notes</TableCell>
-              <TableCell align="center">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+        <>
+          {/* Table for desktop */}
+          <Box sx={{ display: { xs: "none", sm: "block" }, overflowX: "auto" }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Upload Date</TableCell>
+                  <TableCell>Driver</TableCell>
+                  <TableCell>Notes</TableCell>
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {diaries.map((workDiary) => (
+                  <TableRow key={workDiary._id}>
+                    <TableCell>
+                      {new Date(workDiary.uploadDate || Date.now()).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {drivers.find((d) => d._id === workDiary.driverId)?.name || "-"}
+                    </TableCell>
+                    <TableCell>{workDiary.notes || "-"}</TableCell>
+                    <TableCell align="center">
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        sx={{ mr: 1 }}
+                        onClick={() => handleDownload(workDiary)}
+                      >
+                        Download
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        onClick={() => handleDelete(workDiary._id)}
+                      >
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+
+          {/* Mobile cards */}
+          <Stack spacing={2} sx={{ display: { xs: "block", sm: "none" } }}>
             {diaries.map((workDiary) => (
-              <TableRow key={workDiary._id}>
-                <TableCell>{new Date(workDiary.uploadDate || Date.now()).toLocaleDateString()}</TableCell>
-                <TableCell>{workDiary.notes || "-"}</TableCell>
-                <TableCell align="center">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    sx={{ mr: 1 }}
-                    onClick={() => handleDownload(workDiary)}
-                  >
-                    Download
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    size="small"
-                    onClick={() => handleDelete(workDiary._id)}
-                  >
-                    Delete
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <Paper key={workDiary._id} sx={{ p: 2 }}>
+                <Typography><b>Upload Date:</b> {new Date(workDiary.uploadDate || Date.now()).toLocaleDateString()}</Typography>
+                <Typography><b>Driver:</b> {drivers.find((d) => d._id === workDiary.driverId)?.name || "-"}</Typography>
+                <Typography><b>Notes:</b> {workDiary.notes || "-"}</Typography>
+                <Box sx={{ mt: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Button variant="contained" size="small" onClick={() => handleDownload(workDiary)}>Download</Button>
+                  <Button variant="contained" color="error" size="small" onClick={() => handleDelete(workDiary._id)}>Delete</Button>
+                </Box>
+              </Paper>
             ))}
-          </TableBody>
-        </Table>
+          </Stack>
+        </>
       )}
     </Box>
   );

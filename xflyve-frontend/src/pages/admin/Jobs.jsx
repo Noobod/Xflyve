@@ -20,6 +20,7 @@ import {
   MenuItem,
   Alert,
   Grid,
+  Stack,
 } from "@mui/material";
 import { getAllJobs, deleteJob, getAllTrucks, getAllTruckAssignments, getAllDrivers, updateJob } from "../../api";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -114,7 +115,7 @@ const Jobs = () => {
     setEditJob((prev) => ({
       ...prev,
       truckId,
-      assignedTo: "", // reset driver when truck changes
+      assignedTo: "",
     }));
 
     const assignment = assignments.find((a) => a.truckId._id === truckId);
@@ -169,11 +170,10 @@ const Jobs = () => {
     }
   };
 
-  // Filter jobs based on driver or date
   const filteredJobs = jobs.filter((job) => {
     const matchesDriver = filterDriver ? job.assignedTo?._id === filterDriver : true;
-    const matchesStartDate = filterStartDate ? dayjs(job.jobDate).isAfter(dayjs(filterStartDate).subtract(1, 'day')) : true;
-    const matchesEndDate = filterEndDate ? dayjs(job.jobDate).isBefore(dayjs(filterEndDate).add(1, 'day')) : true;
+    const matchesStartDate = filterStartDate ? dayjs(job.jobDate).isAfter(dayjs(filterStartDate).subtract(1, "day")) : true;
+    const matchesEndDate = filterEndDate ? dayjs(job.jobDate).isBefore(dayjs(filterEndDate).add(1, "day")) : true;
     return matchesDriver && matchesStartDate && matchesEndDate;
   });
 
@@ -255,55 +255,66 @@ const Jobs = () => {
       {loading ? (
         <CircularProgress />
       ) : (
-        <TableContainer component={Paper} elevation={3}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                {[
-                  "Title",
-                  "Description",
-                  "Pickup Location",
-                  "Delivery Location",
-                  "Driver",
-                  "Truck",
-                  "Job Type",
-                  "Status",
-                  "Job Date",
-                  "Actions",
-                ].map((header) => (
-                  <TableCell key={header} align="center" sx={{ fontWeight: "bold", minWidth: 120 }}>
-                    {header}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredJobs.map((job) => (
-                <TableRow key={job._id} hover>
-                  <TableCell align="center">{job.title}</TableCell>
-                  <TableCell align="center">{job.description}</TableCell>
-                  <TableCell align="center">{job.pickupLocation}</TableCell>
-                  <TableCell align="center">{job.deliveryLocation}</TableCell>
-                  <TableCell align="center">{job.assignedTo?.name || "N/A"}</TableCell>
-                  <TableCell align="center">{job.assignedTruck?.truckNumber || "N/A"}</TableCell>
-                  <TableCell align="center">{job.jobType}</TableCell>
-                  <TableCell align="center">{job.status}</TableCell>
-                  <TableCell align="center">
-                    {job.jobDate ? dayjs(job.jobDate).format("DD-MM-YYYY") : "-"}
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton color="primary" onClick={() => openEdit(job)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton color="error" onClick={() => handleDelete(job._id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
+        <>
+          {/* Table for larger screens */}
+          <TableContainer component={Paper} elevation={3} sx={{ display: { xs: "none", sm: "block" }, overflowX: "auto" }}>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  {["Title", "Description", "Pickup", "Delivery", "Driver", "Truck", "Type", "Status", "Date", "Actions"].map((header) => (
+                    <TableCell key={header} align="center" sx={{ fontWeight: "bold", minWidth: 120 }}>
+                      {header}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {filteredJobs.map((job) => (
+                  <TableRow key={job._id} hover>
+                    <TableCell align="center">{job.title}</TableCell>
+                    <TableCell align="center">{job.description}</TableCell>
+                    <TableCell align="center">{job.pickupLocation}</TableCell>
+                    <TableCell align="center">{job.deliveryLocation}</TableCell>
+                    <TableCell align="center">{job.assignedTo?.name || "N/A"}</TableCell>
+                    <TableCell align="center">{job.assignedTruck?.truckNumber || "N/A"}</TableCell>
+                    <TableCell align="center">{job.jobType}</TableCell>
+                    <TableCell align="center">{job.status}</TableCell>
+                    <TableCell align="center">{job.jobDate ? dayjs(job.jobDate).format("DD-MM-YYYY") : "-"}</TableCell>
+                    <TableCell align="center">
+                      <IconButton color="primary" onClick={() => openEdit(job)}>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton color="error" onClick={() => handleDelete(job._id)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Card layout for mobile */}
+          <Stack spacing={2} sx={{ display: { xs: "block", sm: "none" } }}>
+            {filteredJobs.map((job) => (
+              <Paper key={job._id} sx={{ p: 2 }}>
+                <Typography variant="h6">{job.title}</Typography>
+                <Typography variant="body2">{job.description}</Typography>
+                <Typography variant="body2">Pickup: {job.pickupLocation}</Typography>
+                <Typography variant="body2">Delivery: {job.deliveryLocation}</Typography>
+                <Typography variant="body2">Driver: {job.assignedTo?.name || "N/A"}</Typography>
+                <Typography variant="body2">Truck: {job.assignedTruck?.truckNumber || "N/A"}</Typography>
+                <Typography variant="body2">Type: {job.jobType}</Typography>
+                <Typography variant="body2">Status: {job.status}</Typography>
+                <Typography variant="body2">Date: {job.jobDate ? dayjs(job.jobDate).format("DD-MM-YYYY") : "-"}</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                  <Button variant="contained" size="small" onClick={() => openEdit(job)}>Edit</Button>
+                  <Button variant="outlined" color="error" size="small" onClick={() => handleDelete(job._id)}>Delete</Button>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+        </>
       )}
 
       {error && <Typography color="error">{error}</Typography>}
@@ -315,54 +326,12 @@ const Jobs = () => {
           {editError && <Alert severity="error" sx={{ mb: 2 }}>{editError}</Alert>}
           {editSuccess && <Alert severity="success" sx={{ mb: 2 }}>{editSuccess}</Alert>}
 
-          <TextField
-            fullWidth
-            label="Job Title"
-            name="title"
-            value={editJob?.title || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Job Description"
-            name="description"
-            value={editJob?.description || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            multiline
-            rows={3}
-            required
-          />
-          <TextField
-            fullWidth
-            label="Pickup Location"
-            name="pickupLocation"
-            value={editJob?.pickupLocation || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            required
-          />
-          <TextField
-            fullWidth
-            label="Delivery Location"
-            name="deliveryLocation"
-            value={editJob?.deliveryLocation || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            required
-          />
-          <TextField
-            select
-            fullWidth
-            label="Truck"
-            name="truckId"
-            value={editJob?.truckId || ""}
-            onChange={handleTruckChange}
-            margin="normal"
-            required
-          >
+          <TextField fullWidth label="Job Title" name="title" value={editJob?.title || ""} onChange={handleEditChange} margin="normal" required />
+          <TextField fullWidth label="Job Description" name="description" value={editJob?.description || ""} onChange={handleEditChange} margin="normal" multiline rows={3} required />
+          <TextField fullWidth label="Pickup Location" name="pickupLocation" value={editJob?.pickupLocation || ""} onChange={handleEditChange} margin="normal" required />
+          <TextField fullWidth label="Delivery Location" name="deliveryLocation" value={editJob?.deliveryLocation || ""} onChange={handleEditChange} margin="normal" required />
+
+          <TextField select fullWidth label="Truck" name="truckId" value={editJob?.truckId || ""} onChange={handleTruckChange} margin="normal" required>
             {trucks.map((truck) => {
               const isAssigned = assignments.some((a) => a.truckId._id === truck._id);
               return (
@@ -373,53 +342,21 @@ const Jobs = () => {
             })}
           </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Driver"
-            name="assignedTo"
-            value={editJob?.assignedTo || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            required
-          >
-            {drivers
-              .filter((d) => {
-                const assignment = assignments.find((a) => a.driverId._id === d._id);
-                return !assignment || assignment.truckId._id === editJob?.truckId;
-              })
-              .map((driver) => (
-                <MenuItem key={driver._id} value={driver._id}>
-                  {driver.name}
-                </MenuItem>
-              ))}
+          <TextField select fullWidth label="Driver" name="assignedTo" value={editJob?.assignedTo || ""} onChange={handleEditChange} margin="normal" required>
+            {drivers.filter((d) => {
+              const assignment = assignments.find((a) => a.driverId._id === d._id);
+              return !assignment || assignment.truckId._id === editJob?.truckId;
+            }).map((driver) => (
+              <MenuItem key={driver._id} value={driver._id}>{driver.name}</MenuItem>
+            ))}
           </TextField>
 
-          <TextField
-            select
-            fullWidth
-            label="Job Type"
-            name="jobType"
-            value={editJob?.jobType || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            required
-          >
+          <TextField select fullWidth label="Job Type" name="jobType" value={editJob?.jobType || ""} onChange={handleEditChange} margin="normal" required>
             <MenuItem value="local">Local</MenuItem>
             <MenuItem value="interstate">Interstate</MenuItem>
           </TextField>
 
-          <TextField
-            fullWidth
-            label="Job Date"
-            type="date"
-            name="jobDate"
-            value={editJob?.jobDate || ""}
-            onChange={handleEditChange}
-            margin="normal"
-            InputLabelProps={{ shrink: true }}
-            required
-          />
+          <TextField fullWidth label="Job Date" type="date" name="jobDate" value={editJob?.jobDate || ""} onChange={handleEditChange} margin="normal" InputLabelProps={{ shrink: true }} required />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditOpen(false)} color="secondary">Cancel</Button>

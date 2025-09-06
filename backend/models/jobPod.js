@@ -1,24 +1,26 @@
 const mongoose = require("mongoose");
 
-const jobPodSchema = new mongoose.Schema({
-  jobId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Job",
-    required: true,
+const jobPodSchema = new mongoose.Schema(
+  {
+    driverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Driver",
+      required: true,
+    },
+    fileUrl: {
+      type: String,
+      required: true,
+    },
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
+    notes: {
+      type: String,
+      trim: true,
+    },
   },
-  driverId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Driver",
-    required: true,
-  },
-  podFilePath: {
-    type: String,
-    required: true,
-  },
-  uploadedAt: {
-    type: Date,
-    default: Date.now,
-  },
-}, { timestamps: true }); // Add timestamps for audit if needed
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("JobPod", jobPodSchema);

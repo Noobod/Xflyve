@@ -7,7 +7,7 @@ const workDiarySchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
-    filePath: {
+    fileUrl: {
       type: String,
       required: true,
     },

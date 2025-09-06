@@ -2,7 +2,6 @@ import { Routes, Route } from "react-router-dom";
 
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/auth/LoginPage";
-import Register from "./pages/auth/Register";
 import ErrorPage from "./pages/ErrorPage";
 import PrivateRoute from "./components/PrivateRoute";
 import MainLayout from "./layouts/MainLayout";
@@ -10,7 +9,6 @@ import MainLayout from "./layouts/MainLayout";
 import HomePage from "./pages/HomePage";
 
 // Admin pages
-import Dashboard from "./pages/admin/Dashboard";
 import Jobs from "./pages/admin/Jobs";
 import CreateJob from "./pages/admin/CreateJob";
 import Trucks from "./pages/admin/Trucks";
@@ -25,8 +23,7 @@ import DriverHome from "./pages/driver/DriverHome";
 import DriverJobs from "./pages/driver/Jobs";
 import DriverWorkDiary from "./pages/driver/WorkDiary";
 import DriverWorkLogs from "./pages/driver/WorkLogs";
-import DriverAssignTruck from "./pages/driver/AssignTruck.jsx";
-import DriverUploadPod from "./pages/driver/UploadPod";
+import DriverUploadPod from "./pages/driver/UploadPod.jsx";
 
 function App() {
   return (
@@ -34,7 +31,6 @@ function App() {
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<Register />} />
 
       {/* Protected routes */}
       <Route element={<PrivateRoute allowedRoles={["admin", "driver"]} />}>
@@ -44,7 +40,6 @@ function App() {
 
           {/* Admin routes */}
           <Route element={<PrivateRoute allowedRoles={["admin"]} />}>
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/create" element={<CreateJob />} />
             <Route path="/trucks" element={<Trucks />} />
@@ -63,10 +58,10 @@ function App() {
             {/* Driver features under /driver/* path for clarity */}
             <Route path="/driver/jobs" element={<DriverJobs />} />
             <Route path="/driver/work-diary" element={<DriverWorkDiary />} />
+            <Route path="/driver/work-diary/:id" element={<DriverWorkDiary />} />
             <Route path="/driver/pods/upload" element={<DriverUploadPod />} />
             <Route path="/driver/pods/upload/:id" element={<DriverUploadPod />} />
             <Route path="/driver/logs" element={<DriverWorkLogs />} />
-            <Route path="/driver/assign-truck" element={<DriverAssignTruck />} />
           </Route>
         </Route>
       </Route>

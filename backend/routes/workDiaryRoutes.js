@@ -7,12 +7,13 @@ const {
   requireAdmin,
   requireDriverOrAdmin, // import the new middleware
 } = require("../middlewares/roleMiddleware");
-const upload = require("../middlewares/workDiaryMiddleware");
+const upload = require("../config/multer");
 const workDiaryController = require("../controllers/workDiaryController");
 const {
   uploadWorkDiaryValidator,
   workDiaryIdValidator,
   driverIdParamValidator,
+  updateWorkDiaryNotesValidator,
 } = require("../validators/workDiaryValidator");
 const validateRequest = require("../middlewares/validateRequest");
 
@@ -40,6 +41,7 @@ router.get(
 // List all work diaries by driver (Driver or Admin) <-- unchanged, because controller handles permission
 router.get(
   "/driver/:driverId",
+  requireDriverOrAdmin,
   ...driverIdParamValidator,
   validateRequest,
   workDiaryController.listWorkDiariesByDriver
@@ -50,6 +52,7 @@ router.put(
   "/:id",
   requireDriverOrAdmin,
   ...workDiaryIdValidator,
+  ...updateWorkDiaryNotesValidator,
   validateRequest,
   workDiaryController.updateWorkDiary
 );

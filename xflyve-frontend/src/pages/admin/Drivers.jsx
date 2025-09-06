@@ -37,17 +37,10 @@ const Drivers = () => {
   const [success, setSuccess] = useState("");
   const [deleteDriverId, setDeleteDriverId] = useState(null);
 
-  // Fetch drivers with cache busting query param to avoid stale cache
+  // Fetch drivers
   const fetchDrivers = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("No token found. Please login.");
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      // Add timestamp query param to bust cache
       const res = await getAllDrivers(`?ts=${Date.now()}`);
       setDrivers(res.data.data);
     } catch (err) {
@@ -80,13 +73,8 @@ const Drivers = () => {
     }
   };
 
-  const handleDeleteClick = (id) => {
-    setDeleteDriverId(id);
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteDriverId(null);
-  };
+  const handleDeleteClick = (id) => setDeleteDriverId(id);
+  const handleDeleteCancel = () => setDeleteDriverId(null);
 
   const handleDeleteConfirm = async () => {
     if (!deleteDriverId) return;
@@ -102,26 +90,15 @@ const Drivers = () => {
     }
   };
 
-  // ✅ Export Drivers to Excel
-  const handleExportExcel = async () => {
-    try {
-      const res = await exportDriversExcel();
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "drivers.xlsx");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error("Export error:", err);
-      setError("Failed to export drivers");
-    }
-  };
-
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Typography variant="h4" align="center" gutterBottom fontWeight="bold">
+    <Container maxWidth="md" sx={{ py: { xs: 2, sm: 4 } }}>
+      <Typography
+        variant="h4"
+        align="center"
+        gutterBottom
+        fontWeight="bold"
+        sx={{ fontSize: { xs: "1.5rem", sm: "2rem" } }}
+      >
         Manage Drivers
       </Typography>
 
@@ -137,15 +114,16 @@ const Drivers = () => {
         </Alert>
       )}
 
+      {/* Create Driver Form */}
       <Box
         component="form"
         onSubmit={handleSubmit}
         sx={{
           display: "flex",
           flexDirection: "column",
-          gap: 2,
+          gap: { xs: 1, sm: 2 },
           mb: 5,
-          p: 3,
+          p: { xs: 2, sm: 3 },
           boxShadow: 3,
           borderRadius: 2,
           backgroundColor: "background.paper",
@@ -184,7 +162,6 @@ const Drivers = () => {
           fullWidth
           inputProps={{ style: { textAlign: "center" } }}
         />
-
         <TextField
           select
           label="Driver Type"
@@ -199,27 +176,27 @@ const Drivers = () => {
           <MenuItem value="interstate">Interstate</MenuItem>
         </TextField>
 
-        <Button type="submit" variant="contained" color="primary" size="large">
+        <Button type="submit" variant="contained" color="primary" size="large" fullWidth>
           Create Driver
         </Button>
       </Box>
 
-      <TableContainer component={Paper} elevation={3}>
-        <Table aria-label="drivers table" sx={{ minWidth: 300 }}>
+      {/* Drivers Table */}
+      <TableContainer component={Paper} elevation={3} sx={{ overflowX: "auto" }}>
+        <Table sx={{ minWidth: 300 }}>
           <TableHead>
             <TableRow>
               {["Name", "Email", "Driver Type", "Role", "Actions"].map((header) => (
                 <TableCell
                   key={header}
                   align="center"
-                  sx={{ fontWeight: "bold", bgcolor: "grey.100" }}
+                  sx={{ fontWeight: "bold", bgcolor: "grey.100", textTransform: "capitalize" }}
                 >
                   {header}
                 </TableCell>
               ))}
             </TableRow>
           </TableHead>
-
           <TableBody>
             {loading ? (
               <TableRow>
@@ -245,14 +222,23 @@ const Drivers = () => {
                     {driver.role}
                   </TableCell>
                   <TableCell align="center">
-                    <Button
-                      variant="contained"
-                      color="error"
-                      size="small"
-                      onClick={() => handleDeleteClick(driver._id)}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: { xs: "column", sm: "row" },
+                        gap: 1,
+                        justifyContent: "center",
+                      }}
                     >
-                      Delete
-                    </Button>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        size="small"
+                        onClick={() => handleDeleteClick(driver._id)}
+                      >
+                        Delete
+                      </Button>
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))

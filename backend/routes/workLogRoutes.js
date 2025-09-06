@@ -3,7 +3,6 @@ const router = express.Router();
 
 const authMiddleware = require("../middlewares/authMiddleware");
 const { requireDriver, requireAdmin } = require("../middlewares/roleMiddleware");
-const accessWorkLogMiddleware = require("../middlewares/accessWorkLogMiddleware");
 const workLogController = require("../controllers/workLogController");
 const { validateWorkLog } = require("../validators/workLogValidator");
 const validateMongoId = require("../validators/validateMongoId");
@@ -14,7 +13,6 @@ router.use(authMiddleware);
 router.get(
   "/admin",
   requireAdmin,
-  accessWorkLogMiddleware,
   workLogController.getAllLogsForAdmin
 );
 
@@ -22,7 +20,6 @@ router.get(
   "/admin/:driverId",
   requireAdmin,
   validateMongoId("driverId"),
-  accessWorkLogMiddleware,
   workLogController.getAllLogsForAdmin
 );
 
@@ -30,7 +27,6 @@ router.get(
 router.post(
   "/",
   requireDriver,
-  accessWorkLogMiddleware,
   validateWorkLog,
   workLogController.createWorkLog
 );
@@ -39,7 +35,6 @@ router.post(
 router.get(
   "/me",
   requireDriver,
-  accessWorkLogMiddleware,
   workLogController.getMyLogs
 );
 
@@ -48,7 +43,6 @@ router.get(
   "/:driverId",
   requireDriver,
   validateMongoId("driverId"),
-  accessWorkLogMiddleware,
   workLogController.getLogsByDriver
 );
 
@@ -57,7 +51,6 @@ router.put(
   "/:logId",
   requireDriver,
   validateMongoId("logId"),
-  accessWorkLogMiddleware,
   validateWorkLog,
   workLogController.updateWorkLog
 );
@@ -67,7 +60,6 @@ router.delete(
   "/:logId",
   requireDriver,
   validateMongoId("logId"),
-  accessWorkLogMiddleware,
   workLogController.deleteWorkLog
 );
 

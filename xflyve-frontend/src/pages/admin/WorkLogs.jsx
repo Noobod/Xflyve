@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { getAllWorkLogsAdmin, getWorkLogsByDriverAdmin, getAllDrivers } from "../../api";
 import {
   Typography,
   Box,
@@ -11,24 +10,19 @@ import {
   TableBody,
   TableRow,
   TableCell,
-  Tooltip,
-  IconButton,
-  Snackbar,
   Paper,
   TextField,
+  Stack,
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import { getAllWorkLogsAdmin, getWorkLogsByDriverAdmin, getAllDrivers } from "../../api";
 
 const WorkLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [drivers, setDrivers] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState(null);
-
-  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     const fetchDrivers = async () => {
@@ -43,7 +37,6 @@ const WorkLogs = () => {
         setError("Server error fetching drivers");
       }
     };
-
     fetchDrivers();
   }, []);
 
@@ -57,7 +50,6 @@ const WorkLogs = () => {
       } else {
         res = await getAllWorkLogsAdmin();
       }
-
       if (res.data.success) {
         setLogs(res.data.data);
       } else {
@@ -86,25 +78,8 @@ const WorkLogs = () => {
     fetchLogs();
   };
 
-  const copyToClipboard = (text) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 1500);
-    });
-  };
-
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        p: 4,
-        bgcolor: "#f5f5f5",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
+    <Box sx={{ minHeight: "100vh", p: { xs: 2, sm: 4 }, bgcolor: "#f5f5f5" }}>
       <Typography
         variant="h4"
         gutterBottom
@@ -135,9 +110,7 @@ const WorkLogs = () => {
           value={selectedDriver}
           onChange={handleDriverChange}
           isOptionEqualToValue={(option, value) => option._id === value._id}
-          renderInput={(params) => (
-            <TextField {...params} label="Filter by Driver" variant="outlined" />
-          )}
+          renderInput={(params) => <TextField {...params} label="Filter by Driver" variant="outlined" />}
           clearOnEscape
           size="medium"
           disableClearable={false}
@@ -155,10 +128,7 @@ const WorkLogs = () => {
         </Button>
       </Paper>
 
-      <Paper
-        elevation={2}
-        sx={{ width: "100%", maxWidth: 900, overflowX: "auto", bgcolor: "#fff" }}
-      >
+      <Paper elevation={2} sx={{ width: "100%", maxWidth: 900, bgcolor: "#fff" }}>
         {loading ? (
           <Box display="flex" justifyContent="center" p={5}>
             <CircularProgress size={50} />
@@ -172,119 +142,64 @@ const WorkLogs = () => {
             No work logs found.
           </Typography>
         ) : (
-          <Table stickyHeader aria-label="work logs table">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: "bold" }}>Driver Name</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Hours</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Kilometers</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Notes</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Job IDs</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {logs.map((log) => {
-                const jobIdsStr = (log.jobIds || [])
-                  .map((id) => (typeof id === "object" ? id._id : id))
-                  .join(", ");
-                return (
-                  <TableRow key={log._id} hover>
-                    <TableCell>
-                      {log.driverId?.name || "Unknown"}{" "}
-                      <Tooltip title="Copy driver name">
-                        <IconButton
-                          size="small"
-                          onClick={() => copyToClipboard(log.driverId?.name || "")}
-                          sx={{ cursor: "pointer" }}
-                        >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      {log.date ? new Date(log.date).toLocaleDateString() : "-"}{" "}
-                      <Tooltip title="Copy date">
-                        <IconButton
-                          size="small"
-                          onClick={() =>
-                            copyToClipboard(
-                              log.date ? new Date(log.date).toLocaleDateString() : ""
-                            )
-                          }
-                          sx={{ cursor: "pointer" }}
-                        >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      {log.hours ?? "-"}{" "}
-                      <Tooltip title="Copy hours">
-                        <IconButton
-                          size="small"
-                          onClick={() => copyToClipboard(String(log.hours || ""))}
-                          sx={{ cursor: "pointer" }}
-                        >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      {log.kilometers ?? "-"}{" "}
-                      <Tooltip title="Copy kilometers">
-                        <IconButton
-                          size="small"
-                          onClick={() => copyToClipboard(String(log.kilometers || ""))}
-                          sx={{ cursor: "pointer" }}
-                        >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      {log.notes || "-"}{" "}
-                      {log.notes && (
-                        <Tooltip title="Copy notes">
-                          <IconButton
-                            size="small"
-                            onClick={() => copyToClipboard(log.notes)}
-                            sx={{ cursor: "pointer" }}
-                          >
-                            <ContentCopyIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {jobIdsStr || "-"}{" "}
-                      {jobIdsStr && (
-                        <Tooltip title="Copy job IDs">
-                          <IconButton
-                            size="small"
-                            onClick={() => copyToClipboard(jobIdsStr)}
-                            sx={{ cursor: "pointer" }}
-                          >
-                            <ContentCopyIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
+          <>
+            {/* Desktop Table */}
+            <Box sx={{ display: { xs: "none", sm: "block" }, overflowX: "auto" }}>
+              <Table stickyHeader aria-label="work logs table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: "bold" }}>Driver Name</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Hours</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Kilometers</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Local Start Time</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Local End Time</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Interstate Start KM</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Interstate End KM</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Deliveries Done</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Notes</TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                </TableHead>
+
+                <TableBody>
+                  {logs.map((log) => (
+                    <TableRow key={log._id} hover>
+                      <TableCell>{log.driverId?.name || "Unknown"}</TableCell>
+                      <TableCell>{log.date ? new Date(log.date).toLocaleDateString() : "-"}</TableCell>
+                      <TableCell>{log.hours ?? "-"}</TableCell>
+                      <TableCell>{log.kilometers ?? "-"}</TableCell>
+                      <TableCell>{log.localStartTime || "-"}</TableCell>
+                      <TableCell>{log.localEndTime || "-"}</TableCell>
+                      <TableCell>{log.interstateStartKm ?? "-"}</TableCell>
+                      <TableCell>{log.interstateEndKm ?? "-"}</TableCell>
+                      <TableCell>{log.deliveriesDone ?? "-"}</TableCell>
+                      <TableCell>{log.notes || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+
+            {/* Mobile Cards */}
+            <Stack spacing={2} sx={{ display: { xs: "block", sm: "none" }, p: 2 }}>
+              {logs.map((log) => (
+                <Paper key={log._id} sx={{ p: 2 }}>
+                  <Typography><b>Driver Name:</b> {log.driverId?.name || "Unknown"}</Typography>
+                  <Typography><b>Date:</b> {log.date ? new Date(log.date).toLocaleDateString() : "-"}</Typography>
+                  <Typography><b>Hours:</b> {log.hours ?? "-"}</Typography>
+                  <Typography><b>Kilometers:</b> {log.kilometers ?? "-"}</Typography>
+                  <Typography><b>Local Start:</b> {log.localStartTime || "-"}</Typography>
+                  <Typography><b>Local End:</b> {log.localEndTime || "-"}</Typography>
+                  <Typography><b>Interstate Start KM:</b> {log.interstateStartKm ?? "-"}</Typography>
+                  <Typography><b>Interstate End KM:</b> {log.interstateEndKm ?? "-"}</Typography>
+                  <Typography><b>Deliveries Done:</b> {log.deliveriesDone ?? "-"}</Typography>
+                  <Typography><b>Notes:</b> {log.notes || "-"}</Typography>
+                </Paper>
+              ))}
+            </Stack>
+          </>
         )}
       </Paper>
-
-      <Snackbar
-        open={copySuccess}
-        autoHideDuration={1500}
-        onClose={() => setCopySuccess(false)}
-        message="Copied to clipboard"
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      />
     </Box>
   );
 };
