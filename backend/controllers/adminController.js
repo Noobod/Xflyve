@@ -9,7 +9,7 @@ const DailyWorkLog = require("../models/dailyWorkLog");
 const JobPod = require("../models/jobPod");
 
 const exportToExcel = require("../utils/excelExport");
-const generateZip = require("../utils/ZipGenerator");
+const generateZip = require("../utils/zipGenerator");
 const logger = require("../utils/logger");
 
 const ADMIN_ROLE = "admin"; // Use constants for roles
