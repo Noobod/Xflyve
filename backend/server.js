@@ -91,6 +91,13 @@ app.use("/api/jobpods", jobPodRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/workdiaries", workDiaryRoutes);
 
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "Xflyve backend API is running 🚀",
+  });
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, message: "Route not found" });
