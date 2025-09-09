@@ -99,3 +99,14 @@ npm run start
 - Ensure CORS allows frontend domain
 - MongoDB Atlas must be accessible
 - Cloudinary setup required for file uploads
+
+---
+
+### Demo Credential
+## Admin
+Email - admin@example.com
+Pass - admin123
+
+## Driver
+Email - kapil@example.com
+Pass - kapil
