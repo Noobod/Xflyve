@@ -104,9 +104,9 @@ npm run start
 
 ### Demo Credential
 ## Admin
-Email - admin@example.com
-Pass - admin123
+- Email - admin@example.com
+- Password - admin123
 
 ## Driver
-Email - kapil@example.com
-Pass - kapil
+- Email - kapil@example.com
+- Password - kapil
