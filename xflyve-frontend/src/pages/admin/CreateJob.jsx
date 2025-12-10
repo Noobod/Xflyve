@@ -11,7 +11,13 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { getAllTrucks, getAllTruckAssignments, getAllDrivers, createJob } from "../../api";
+import {
+  getAllTrucks,
+  getAllTruckAssignments,
+  getAllDrivers,
+  getPublicDrivers,
+  createJob,
+} from "../../api";
 
 const CreateJob = () => {
   const theme = useTheme();
@@ -36,6 +42,16 @@ const CreateJob = () => {
     jobType: "",
   });
 
+  // Safely extract array data from backend (supports demo + real endpoints)
+  const safeArray = (res, keys = []) => {
+    for (const key of keys) {
+      if (Array.isArray(res?.data?.[key])) return res.data[key];
+    }
+    if (Array.isArray(res?.data?.data)) return res.data.data;
+    if (Array.isArray(res?.data)) return res.data;
+    return [];
+  };
+
   // Fetch data
   useEffect(() => {
     const fetchData = async () => {
@@ -43,12 +59,15 @@ const CreateJob = () => {
         const [trucksRes, assignmentsRes, driversRes] = await Promise.all([
           getAllTrucks(),
           getAllTruckAssignments(),
-          getAllDrivers(),
+          getAllDrivers(), // real drivers (protected)
         ]);
-        setTrucks(trucksRes.data.data || []);
-        setAssignments(assignmentsRes.data.data || []);
-        setDrivers(driversRes.data.data || []);
-      } catch {
+
+        // Extract data safely
+        setTrucks(safeArray(trucksRes, ["trucks"]));
+        setAssignments(safeArray(assignmentsRes, ["assignments"]));
+        setDrivers(safeArray(driversRes, ["users"])); // supports demo structure
+      } catch (err) {
+        console.error("Load error:", err);
         setError("Failed to load trucks, assignments, or drivers");
       } finally {
         setLoading(false);
@@ -57,18 +76,18 @@ const CreateJob = () => {
     fetchData();
   }, []);
 
-  // Handle form input
+  // Handle input changes
   const handleChange = (e) =>
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleTruckSelect = (truckId) => {
     setFormData((prev) => ({ ...prev, truckId }));
 
-    const assignment = assignments.find((a) => a.truckId._id === truckId);
+    const assignment = assignments.find((a) => a.truckId?._id === truckId);
     if (assignment) {
       setFormData((prev) => ({
         ...prev,
-        assignedTo: assignment.driverId._id,
+        assignedTo: assignment.driverId?._id,
         jobDate: assignment.date.split("T")[0],
       }));
     } else {
@@ -77,9 +96,12 @@ const CreateJob = () => {
   };
 
   const isValidDate = () => {
-    const assignment = assignments.find((a) => a.truckId._id === formData.truckId);
+    const assignment = assignments.find((a) => a.truckId?._id === formData.truckId);
     if (!assignment) return true;
-    return new Date(formData.jobDate).toDateString() === new Date(assignment.date).toDateString();
+    return (
+      new Date(formData.jobDate).toDateString() ===
+      new Date(assignment.date).toDateString()
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -97,6 +119,7 @@ const CreateJob = () => {
       "deliveryLocation",
       "jobType",
     ];
+
     for (let field of requiredFields) {
       if (!formData[field]) {
         setError("Please fill all required fields");
@@ -111,10 +134,16 @@ const CreateJob = () => {
 
     try {
       setSubmitting(true);
-      const payload = { ...formData, assignedTruck: formData.truckId };
+
+      const payload = {
+        ...formData,
+        assignedTruck: formData.truckId,
+      };
+
       delete payload.truckId;
 
       await createJob(payload);
+
       setSuccess("Job created successfully!");
       setFormData({
         title: "",
@@ -126,8 +155,10 @@ const CreateJob = () => {
         deliveryLocation: "",
         jobType: "",
       });
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
+      console.error("Job creation error:", err);
       setError(err.response?.data?.message || "Failed to create job");
     } finally {
       setSubmitting(false);
@@ -143,7 +174,7 @@ const CreateJob = () => {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 4, px: { xs: 2, sm: 0 } }}>
+    <Container maxWidth="sm" sx={{ mt: 4 }}>
       <Typography variant="h4" gutterBottom align="center">
         Create Job
       </Typography>
@@ -161,16 +192,18 @@ const CreateJob = () => {
             onChange={handleChange}
             required
           />
+
           <TextField
             fullWidth
             label="Job Description"
             name="description"
-            value={formData.description}
-            onChange={handleChange}
             multiline
             rows={3}
+            value={formData.description}
+            onChange={handleChange}
             required
           />
+
           <TextField
             fullWidth
             label="Pickup Location"
@@ -179,6 +212,7 @@ const CreateJob = () => {
             onChange={handleChange}
             required
           />
+
           <TextField
             fullWidth
             label="Delivery Location"
@@ -187,6 +221,7 @@ const CreateJob = () => {
             onChange={handleChange}
             required
           />
+
           <TextField
             select
             fullWidth
@@ -197,14 +232,21 @@ const CreateJob = () => {
             required
           >
             {trucks.map((truck) => {
-              const isAssigned = assignments.some((a) => a.truckId._id === truck._id);
+              const isAssigned = assignments.some(
+                (a) => a.truckId?._id === truck._id
+              );
               return (
-                <MenuItem key={truck._id} value={truck._id} disabled={isAssigned}>
+                <MenuItem
+                  key={truck._id}
+                  value={truck._id}
+                  disabled={isAssigned}
+                >
                   {truck.truckNumber} {isAssigned && "(Already Assigned)"}
                 </MenuItem>
               );
             })}
           </TextField>
+
           <TextField
             select
             fullWidth
@@ -215,19 +257,23 @@ const CreateJob = () => {
             required
           >
             {drivers.map((driver) => (
-              <MenuItem key={driver._id} value={driver._id}>{driver.name}</MenuItem>
+              <MenuItem key={driver._id} value={driver._id}>
+                {driver.name}
+              </MenuItem>
             ))}
           </TextField>
+
           <TextField
             fullWidth
-            label="Job Date"
             type="date"
+            label="Job Date"
             name="jobDate"
+            InputLabelProps={{ shrink: true }}
             value={formData.jobDate}
             onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
             required
           />
+
           <TextField
             select
             fullWidth
@@ -246,7 +292,6 @@ const CreateJob = () => {
             variant="contained"
             color="primary"
             fullWidth
-            size={isMobile ? "large" : "medium"}
             disabled={submitting}
           >
             {submitting ? <CircularProgress size={24} /> : "Create Job"}
