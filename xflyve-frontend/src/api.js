@@ -142,4 +142,7 @@ export const deletePod = async (podId) => {
   return data.data;
 };
 
+// ===== PUBLIC ROUTE FOR PRESENTATION (NO TOKEN REQUIRED) =====
+export const getPublicDrivers = () => api.get("/admin/show-all-drivers");
+
 export default api;

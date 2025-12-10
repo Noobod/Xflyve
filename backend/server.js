@@ -34,6 +34,7 @@ const limiter = rateLimit({
     });
   },
 });
+
 app.use(limiter);
 
 // Validate essential ENV
