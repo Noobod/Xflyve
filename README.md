@@ -32,7 +32,7 @@ XFlyve provides a single internal platform with **role-based access** for admins
 
 ---
 
-## ✨ Features
+## Features
 
 ### Admin
 - Manage drivers, trucks, and job assignments  
