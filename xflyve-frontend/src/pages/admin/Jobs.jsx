@@ -1,55 +1,86 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Container,
-  Typography,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
   Alert,
-  Grid,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Paper,
   Stack,
+  TextField,
+  Typography,
 } from "@mui/material";
-import { getAllJobs, deleteJob, getAllTrucks, getAllTruckAssignments, getAllDrivers, updateJob } from "../../api";
-import DeleteIcon from "@mui/icons-material/Delete";
+import { alpha } from "@mui/material/styles";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
+import { getAllJobs, deleteJob, getAllTrucks, getAllTruckAssignments, getAllDrivers, updateJob } from "../../api";
+
+const palette = {
+  ink: "#0b1220",
+  muted: "#697586",
+  line: "rgba(15, 23, 42, 0.075)",
+  panel: "rgba(255, 255, 255, 0.88)",
+  heroStart: "#050b18",
+  heroMid: "#0b2f3a",
+  heroEnd: "#0c5f5b",
+  teal: "#0e7c76",
+  blue: "#2563eb",
+  amber: "#b76e00",
+  emerald: "#07866f",
+};
+
+const statusMeta = (status) => {
+  if (status === "completed") return { label: "Completed", color: palette.emerald };
+  if (status === "in-progress") return { label: "In progress", color: palette.blue };
+  return { label: "Pending", color: palette.amber };
+};
+
+const DetailPill = ({ icon, label, value }) => (
+  <Paper elevation={0} sx={{ p: 1.4, borderRadius: 3, border: "1px solid", borderColor: palette.line, bgcolor: alpha("#fff", 0.74), minWidth: 0 }}>
+    <Stack direction="row" spacing={1.1} alignItems="center">
+      <Box sx={{ width: 34, height: 34, borderRadius: 2.5, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.08), flexShrink: 0 }}>
+        {icon}
+      </Box>
+      <Box minWidth={0}>
+        <Typography variant="caption" sx={{ color: palette.muted, fontWeight: 800 }}>{label}</Typography>
+        <Typography variant="body2" fontWeight={900} noWrap sx={{ color: palette.ink }}>{value || "—"}</Typography>
+      </Box>
+    </Stack>
+  </Paper>
+);
 
 const Jobs = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [trucks, setTrucks] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [assignments, setAssignments] = useState([]);
-
   const [editOpen, setEditOpen] = useState(false);
   const [editJob, setEditJob] = useState(null);
   const [editError, setEditError] = useState("");
-  const [editSuccess, setEditSuccess] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
-
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [filterDriver, setFilterDriver] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
 
   const navigate = useNavigate();
 
   const fetchJobs = async () => {
+    setLoading(true);
     try {
       const res = await getAllJobs();
       setJobs(res.data.data || []);
@@ -80,14 +111,14 @@ const Jobs = () => {
     fetchTrucksDrivers();
   }, []);
 
-  const handleDelete = async (id) => {
-    try {
-      await deleteJob(id);
-      setJobs(jobs.filter((job) => job._id !== id));
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to delete job");
-    }
-  };
+  const filteredJobs = useMemo(() => {
+    return jobs
+      .filter((job) => (filterDriver ? job.assignedTo?._id === filterDriver : true))
+      .filter((job) => (filterStatus ? job.status === filterStatus : true))
+      .filter((job) => (filterStartDate ? dayjs(job.jobDate).isAfter(dayjs(filterStartDate).subtract(1, "day")) : true))
+      .filter((job) => (filterEndDate ? dayjs(job.jobDate).isBefore(dayjs(filterEndDate).add(1, "day")) : true))
+      .sort((a, b) => new Date(a.jobDate) - new Date(b.jobDate));
+  }, [jobs, filterDriver, filterStatus, filterStartDate, filterEndDate]);
 
   const openEdit = (job) => {
     setEditJob({
@@ -102,53 +133,31 @@ const Jobs = () => {
       jobDate: job.jobDate ? dayjs(job.jobDate).format("YYYY-MM-DD") : "",
     });
     setEditError("");
-    setEditSuccess("");
     setEditOpen(true);
   };
 
-  const handleEditChange = (e) => {
-    setEditJob((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
+  const handleEditChange = (e) => setEditJob((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleTruckChange = (e) => {
     const truckId = e.target.value;
+    const assignment = assignments.find((a) => a.truckId?._id === truckId);
     setEditJob((prev) => ({
       ...prev,
       truckId,
-      assignedTo: "",
+      assignedTo: assignment?.driverId?._id || "",
+      jobDate: assignment?.date ? assignment.date.split("T")[0] : prev.jobDate,
     }));
-
-    const assignment = assignments.find((a) => a.truckId._id === truckId);
-    if (assignment) {
-      setEditJob((prev) => ({
-        ...prev,
-        assignedTo: assignment.driverId._id,
-        jobDate: assignment.date.split("T")[0],
-      }));
-    }
   };
 
   const handleEditSubmit = async () => {
-    if (
-      !editJob.title ||
-      !editJob.description ||
-      !editJob.truckId ||
-      !editJob.assignedTo ||
-      !editJob.jobDate ||
-      !editJob.pickupLocation ||
-      !editJob.deliveryLocation ||
-      !editJob.jobType
-    ) {
+    if (!editJob?.title || !editJob.description || !editJob.truckId || !editJob.assignedTo || !editJob.jobDate || !editJob.pickupLocation || !editJob.deliveryLocation || !editJob.jobType) {
       setEditError("Please fill all required fields");
       return;
     }
-
     setEditSubmitting(true);
     setEditError("");
-    setEditSuccess("");
-
     try {
-      const payload = {
+      await updateJob(editJob._id, {
         title: editJob.title,
         description: editJob.description,
         pickupLocation: editJob.pickupLocation,
@@ -157,10 +166,7 @@ const Jobs = () => {
         assignedTo: editJob.assignedTo,
         jobType: editJob.jobType,
         jobDate: editJob.jobDate,
-      };
-
-      await updateJob(editJob._id, payload);
-      setEditSuccess("Job updated successfully!");
+      });
       setEditOpen(false);
       fetchJobs();
     } catch (err) {
@@ -170,202 +176,137 @@ const Jobs = () => {
     }
   };
 
-  const filteredJobs = jobs.filter((job) => {
-    const matchesDriver = filterDriver ? job.assignedTo?._id === filterDriver : true;
-    const matchesStartDate = filterStartDate ? dayjs(job.jobDate).isAfter(dayjs(filterStartDate).subtract(1, "day")) : true;
-    const matchesEndDate = filterEndDate ? dayjs(job.jobDate).isBefore(dayjs(filterEndDate).add(1, "day")) : true;
-    return matchesDriver && matchesStartDate && matchesEndDate;
-  });
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteJob(deleteTarget._id);
+      setJobs((prev) => prev.filter((job) => job._id !== deleteTarget._id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete job");
+    }
+  };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Manage Jobs
-      </Typography>
-
-      <Button
-        variant="contained"
-        color="primary"
-        sx={{ mb: 2 }}
-        onClick={() => navigate("/jobs/create")}
-      >
-        Create New Job
-      </Button>
-
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={3}>
-            <TextField
-              select
-              fullWidth
-              size="small"
-              label="Driver"
-              value={filterDriver}
-              onChange={(e) => setFilterDriver(e.target.value)}
-            >
-              <MenuItem value="">All Drivers</MenuItem>
-              {drivers.map((d) => (
-                <MenuItem key={d._id} value={d._id}>
-                  {d.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="Start Date"
-              InputLabelProps={{ shrink: true }}
-              value={filterStartDate}
-              onChange={(e) => setFilterStartDate(e.target.value)}
-            />
-          </Grid>
-          <Grid item xs={6} sm={3}>
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="End Date"
-              InputLabelProps={{ shrink: true }}
-              value={filterEndDate}
-              onChange={(e) => setFilterEndDate(e.target.value)}
-            />
-          </Grid>
-          <Grid item xs={12} sm={3}>
-            <Button
-              variant="outlined"
-              color="secondary"
-              size="small"
-              onClick={() => {
-                setFilterDriver("");
-                setFilterStartDate("");
-                setFilterEndDate("");
-              }}
-              sx={{ mt: { xs: 1, sm: 0 } }}
-            >
-              Clear Filters
+    <Box sx={{ minHeight: "100vh", pt: { xs: 3, sm: 4 }, pb: 6, overflowX: "hidden", background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)` }}>
+      <Box sx={{ width: "100%", maxWidth: 1240, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
+        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3, borderRadius: 5, color: "white", background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)` }}>
+          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
+            <Box>
+              <Chip label="Job Management" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
+              <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>Operations Board</Typography>
+              <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>Manage active runs, drivers, trucks and delivery status from one mobile-friendly view.</Typography>
+            </Box>
+            <Button variant="contained" size="large" startIcon={<AddIcon />} onClick={() => navigate("/jobs/create")} sx={{ minHeight: 54, borderRadius: 3, bgcolor: "white", color: palette.ink, fontWeight: 950, px: 2.5, "&:hover": { bgcolor: alpha("#fff", 0.9) } }}>
+              Create Run
             </Button>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {loading ? (
-        <CircularProgress />
-      ) : (
-        <>
-          {/* Table for larger screens */}
-          <TableContainer component={Paper} elevation={3} sx={{ display: { xs: "none", sm: "block" }, overflowX: "auto" }}>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow>
-                  {["Title", "Description", "Pickup", "Delivery", "Driver", "Truck", "Type", "Status", "Date", "Actions"].map((header) => (
-                    <TableCell key={header} align="center" sx={{ fontWeight: "bold", minWidth: 120 }}>
-                      {header}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredJobs.map((job) => (
-                  <TableRow key={job._id} hover>
-                    <TableCell align="center">{job.title}</TableCell>
-                    <TableCell align="center">{job.description}</TableCell>
-                    <TableCell align="center">{job.pickupLocation}</TableCell>
-                    <TableCell align="center">{job.deliveryLocation}</TableCell>
-                    <TableCell align="center">{job.assignedTo?.name || "N/A"}</TableCell>
-                    <TableCell align="center">{job.assignedTruck?.truckNumber || "N/A"}</TableCell>
-                    <TableCell align="center">{job.jobType}</TableCell>
-                    <TableCell align="center">{job.status}</TableCell>
-                    <TableCell align="center">{job.jobDate ? dayjs(job.jobDate).format("DD-MM-YYYY") : "-"}</TableCell>
-                    <TableCell align="center">
-                      <IconButton color="primary" onClick={() => openEdit(job)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton color="error" onClick={() => handleDelete(job._id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {/* Card layout for mobile */}
-          <Stack spacing={2} sx={{ display: { xs: "block", sm: "none" } }}>
-            {filteredJobs.map((job) => (
-              <Paper key={job._id} sx={{ p: 2 }}>
-                <Typography variant="h6">{job.title}</Typography>
-                <Typography variant="body2">{job.description}</Typography>
-                <Typography variant="body2">Pickup: {job.pickupLocation}</Typography>
-                <Typography variant="body2">Delivery: {job.deliveryLocation}</Typography>
-                <Typography variant="body2">Driver: {job.assignedTo?.name || "N/A"}</Typography>
-                <Typography variant="body2">Truck: {job.assignedTruck?.truckNumber || "N/A"}</Typography>
-                <Typography variant="body2">Type: {job.jobType}</Typography>
-                <Typography variant="body2">Status: {job.status}</Typography>
-                <Typography variant="body2">Date: {job.jobDate ? dayjs(job.jobDate).format("DD-MM-YYYY") : "-"}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                  <Button variant="contained" size="small" onClick={() => openEdit(job)}>Edit</Button>
-                  <Button variant="outlined" color="error" size="small" onClick={() => handleDelete(job._id)}>Delete</Button>
-                </Stack>
-              </Paper>
-            ))}
           </Stack>
-        </>
-      )}
+        </Paper>
 
-      {error && <Typography color="error">{error}</Typography>}
+        {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
 
-      {/* Edit Dialog */}
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Job</DialogTitle>
-        <DialogContent>
-          {editError && <Alert severity="error" sx={{ mb: 2 }}>{editError}</Alert>}
-          {editSuccess && <Alert severity="success" sx={{ mb: 2 }}>{editSuccess}</Alert>}
+        <Paper elevation={0} sx={{ p: 2, mb: 2.5, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1.2fr 1fr 1fr 1fr auto" }, gap: 1.5, alignItems: "center" }}>
+            <TextField select fullWidth label="Driver" value={filterDriver} onChange={(e) => setFilterDriver(e.target.value)}>
+              <MenuItem value="">All Drivers</MenuItem>
+              {drivers.map((d) => <MenuItem key={d._id} value={d._id}>{d.name}</MenuItem>)}
+            </TextField>
+            <TextField select fullWidth label="Status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+              <MenuItem value="">All Statuses</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="in-progress">In progress</MenuItem>
+              <MenuItem value="completed">Completed</MenuItem>
+            </TextField>
+            <TextField fullWidth type="date" label="Start Date" InputLabelProps={{ shrink: true }} value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} />
+            <TextField fullWidth type="date" label="End Date" InputLabelProps={{ shrink: true }} value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
+            <Button variant="outlined" onClick={() => { setFilterDriver(""); setFilterStatus(""); setFilterStartDate(""); setFilterEndDate(""); }} sx={{ minHeight: 54, borderRadius: 3, fontWeight: 850 }}>
+              Clear
+            </Button>
+          </Box>
+        </Paper>
 
-          <TextField fullWidth label="Job Title" name="title" value={editJob?.title || ""} onChange={handleEditChange} margin="normal" required />
-          <TextField fullWidth label="Job Description" name="description" value={editJob?.description || ""} onChange={handleEditChange} margin="normal" multiline rows={3} required />
-          <TextField fullWidth label="Pickup Location" name="pickupLocation" value={editJob?.pickupLocation || ""} onChange={handleEditChange} margin="normal" required />
-          <TextField fullWidth label="Delivery Location" name="deliveryLocation" value={editJob?.deliveryLocation || ""} onChange={handleEditChange} margin="normal" required />
-
-          <TextField select fullWidth label="Truck" name="truckId" value={editJob?.truckId || ""} onChange={handleTruckChange} margin="normal" required>
-            {trucks.map((truck) => {
-              const isAssigned = assignments.some((a) => a.truckId._id === truck._id);
+        {loading ? (
+          <Paper elevation={0} sx={{ p: 5, textAlign: "center", borderRadius: 5, border: "1px solid", borderColor: palette.line }}><CircularProgress /></Paper>
+        ) : filteredJobs.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+            <Typography fontWeight={950}>No runs found</Typography>
+            <Typography sx={{ color: palette.muted }}>Create a run or adjust your filters.</Typography>
+          </Paper>
+        ) : (
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2, 1fr)" }, gap: 2 }}>
+            {filteredJobs.map((job) => {
+              const meta = statusMeta(job.status);
               return (
-                <MenuItem key={truck._id} value={truck._id} disabled={isAssigned && truck._id !== editJob?.truckId}>
-                  {truck.truckNumber} {isAssigned && truck._id !== editJob?.truckId ? "(Already Assigned)" : ""}
-                </MenuItem>
+                <Paper key={job._id} elevation={0} sx={{ p: 2, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                  <Stack spacing={1.7}>
+                    <Stack direction="row" justifyContent="space-between" spacing={1} alignItems="flex-start">
+                      <Box minWidth={0}>
+                        <Typography fontWeight={950} sx={{ color: palette.ink, letterSpacing: "-0.035em" }}>{job.title}</Typography>
+                        <Typography variant="body2" sx={{ color: palette.muted, mt: 0.4 }}>{job.description || "No description added."}</Typography>
+                      </Box>
+                      <Chip label={meta.label} sx={{ color: meta.color, bgcolor: alpha(meta.color, 0.1), fontWeight: 900, flexShrink: 0 }} />
+                    </Stack>
+                    <Typography fontWeight={900} sx={{ color: palette.ink }}>
+                      {job.pickupLocation || "Pickup"} → {job.deliveryLocation || "Delivery"}
+                    </Typography>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1 }}>
+                      <DetailPill icon={<PersonOutlineIcon />} label="Driver" value={job.assignedTo?.name || "N/A"} />
+                      <DetailPill icon={<LocalShippingIcon />} label="Truck" value={job.assignedTruck?.truckNumber || "N/A"} />
+                      <DetailPill icon={<RouteOutlinedIcon />} label="Date" value={job.jobDate ? dayjs(job.jobDate).format("DD MMM YYYY") : "—"} />
+                    </Box>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <Button fullWidth variant="contained" startIcon={<EditIcon />} onClick={() => openEdit(job)} sx={{ minHeight: 48, borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Edit</Button>
+                      <Button fullWidth variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setDeleteTarget(job)} sx={{ minHeight: 48, borderRadius: 3, fontWeight: 900 }}>Delete</Button>
+                    </Stack>
+                  </Stack>
+                </Paper>
               );
             })}
-          </TextField>
+          </Box>
+        )}
 
-          <TextField select fullWidth label="Driver" name="assignedTo" value={editJob?.assignedTo || ""} onChange={handleEditChange} margin="normal" required>
-            {drivers.filter((d) => {
-              const assignment = assignments.find((a) => a.driverId._id === d._id);
-              return !assignment || assignment.truckId._id === editJob?.truckId;
-            }).map((driver) => (
-              <MenuItem key={driver._id} value={driver._id}>{driver.name}</MenuItem>
-            ))}
-          </TextField>
+        <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 5 } }}>
+          <DialogTitle sx={{ fontWeight: 950 }}>Edit Run</DialogTitle>
+          <DialogContent>
+            {editError && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{editError}</Alert>}
+            <Stack spacing={1.5} sx={{ pt: 1 }}>
+              <TextField fullWidth label="Run Title" name="title" value={editJob?.title || ""} onChange={handleEditChange} required />
+              <TextField fullWidth label="Description" name="description" value={editJob?.description || ""} onChange={handleEditChange} multiline rows={3} required />
+              <TextField fullWidth label="Pickup" name="pickupLocation" value={editJob?.pickupLocation || ""} onChange={handleEditChange} required />
+              <TextField fullWidth label="Delivery" name="deliveryLocation" value={editJob?.deliveryLocation || ""} onChange={handleEditChange} required />
+              <TextField select fullWidth label="Truck" name="truckId" value={editJob?.truckId || ""} onChange={handleTruckChange} required>
+                {trucks.map((truck) => <MenuItem key={truck._id} value={truck._id}>{truck.truckNumber}</MenuItem>)}
+              </TextField>
+              <TextField select fullWidth label="Driver" name="assignedTo" value={editJob?.assignedTo || ""} onChange={handleEditChange} required>
+                {drivers.map((driver) => <MenuItem key={driver._id} value={driver._id}>{driver.name}</MenuItem>)}
+              </TextField>
+              <TextField select fullWidth label="Run Type" name="jobType" value={editJob?.jobType || ""} onChange={handleEditChange} required>
+                <MenuItem value="local">Local</MenuItem>
+                <MenuItem value="interstate">Interstate</MenuItem>
+              </TextField>
+              <TextField fullWidth label="Run Date" type="date" name="jobDate" value={editJob?.jobDate || ""} onChange={handleEditChange} InputLabelProps={{ shrink: true }} required />
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setEditOpen(false)} sx={{ borderRadius: 3 }}>Cancel</Button>
+            <Button onClick={handleEditSubmit} variant="contained" disabled={editSubmitting} sx={{ borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>
+              {editSubmitting ? <CircularProgress size={22} /> : "Update Run"}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-          <TextField select fullWidth label="Job Type" name="jobType" value={editJob?.jobType || ""} onChange={handleEditChange} margin="normal" required>
-            <MenuItem value="local">Local</MenuItem>
-            <MenuItem value="interstate">Interstate</MenuItem>
-          </TextField>
-
-          <TextField fullWidth label="Job Date" type="date" name="jobDate" value={editJob?.jobDate || ""} onChange={handleEditChange} margin="normal" InputLabelProps={{ shrink: true }} required />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditOpen(false)} color="secondary">Cancel</Button>
-          <Button onClick={handleEditSubmit} variant="contained" color="primary" disabled={editSubmitting}>
-            {editSubmitting ? <CircularProgress size={24} /> : "Update Job"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+        <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} PaperProps={{ sx: { borderRadius: 5 } }}>
+          <DialogTitle sx={{ fontWeight: 950 }}>Delete this run?</DialogTitle>
+          <DialogContent>
+            <Typography sx={{ color: palette.muted }}>This removes “{deleteTarget?.title}” from operations. This action cannot be undone.</Typography>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setDeleteTarget(null)} sx={{ borderRadius: 3 }}>Cancel</Button>
+            <Button onClick={confirmDelete} color="error" variant="contained" sx={{ borderRadius: 3, fontWeight: 900 }}>Delete</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </Box>
   );
 };
 

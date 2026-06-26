@@ -1,24 +1,34 @@
 import React, { useEffect, useState } from "react";
 import {
-  Box,
-  Typography,
-  Button,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  CircularProgress,
   Alert,
-  MenuItem,
-  Select,
-  InputLabel,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
   FormControl,
-  Stack,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
+  Stack,
+  Typography,
 } from "@mui/material";
-
+import { alpha } from "@mui/material/styles";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DownloadIcon from "@mui/icons-material/Download";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import { getAllDrivers, listPodsByDriver, deletePod, getPod } from "../../api";
+
+const palette = {
+  ink: "#0b1220",
+  muted: "#697586",
+  line: "rgba(15, 23, 42, 0.075)",
+  panel: "rgba(255, 255, 255, 0.88)",
+  heroStart: "#050b18",
+  heroMid: "#0b2f3a",
+  heroEnd: "#0c5f5b",
+  teal: "#0e7c76",
+};
 
 const AdminPODs = () => {
   const [drivers, setDrivers] = useState([]);
@@ -32,7 +42,7 @@ const AdminPODs = () => {
     const fetchDrivers = async () => {
       try {
         const res = await getAllDrivers();
-        if (res.data.status === "success") setDrivers(res.data.data);
+        if (res.data.status === "success") setDrivers(res.data.data || []);
         else setError("Failed to load drivers");
       } catch (err) {
         setError(err.response?.data?.message || "Server error loading drivers");
@@ -44,14 +54,14 @@ const AdminPODs = () => {
   useEffect(() => {
     setError("");
     setSuccess("");
-    if (!selectedDriver) return setPods([]);
-
+    if (!selectedDriver) {
+      setPods([]);
+      return;
+    }
     const fetchPods = async () => {
       setLoading(true);
-      setError("");
       try {
-        const items = await listPodsByDriver(selectedDriver);
-        setPods(items);
+        setPods(await listPodsByDriver(selectedDriver));
       } catch (err) {
         setError(err.response?.data?.message || "Server error fetching PODs");
       } finally {
@@ -61,11 +71,13 @@ const AdminPODs = () => {
     fetchPods();
   }, [selectedDriver]);
 
+  const driverName = (id) => drivers.find((d) => d._id === id)?.name || "Driver";
+
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this POD?")) return;
+    if (!window.confirm("Delete this POD record?")) return;
     try {
       await deletePod(id);
-      setSuccess("POD deleted");
+      setSuccess("POD deleted.");
       setPods((prev) => prev.filter((d) => d._id !== id));
     } catch {
       setError("Failed to delete POD");
@@ -75,144 +87,77 @@ const AdminPODs = () => {
   const handleDownload = async (pod) => {
     try {
       const blob = await getPod(pod._id);
-      const driverName =
-        drivers.find((d) => d._id === pod.driverId)?.name || "Driver";
-      const dateStr = new Date(pod.uploadDate).toISOString().slice(0, 10);
-      const filename = `POD-${driverName.replace(/\s+/g, "_")}-${dateStr}.pdf`;
+      const dateStr = new Date(pod.uploadDate || Date.now()).toISOString().slice(0, 10);
+      const filename = `POD-${driverName(pod.driverId).replace(/\s+/g, "_")}-${dateStr}.pdf`;
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
+      URL.revokeObjectURL(link.href);
     } catch {
       setError("Failed to download POD");
     }
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 1200, mx: "auto" }}>
-      <Typography variant="h4" gutterBottom>
-        POD Management (Admin)
-      </Typography>
+    <Box sx={{ minHeight: "100vh", pt: { xs: 3, sm: 4 }, pb: 6, overflowX: "hidden", background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)` }}>
+      <Box sx={{ width: "100%", maxWidth: 1040, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
+        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3, borderRadius: 5, color: "white", background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)` }}>
+          <Chip label="Delivery Records" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
+          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>POD Records</Typography>
+          <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>Review proof-of-delivery uploads by driver for customer follow-up and invoice preparation.</Typography>
+        </Paper>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      {success && (
-        <Alert severity="success" onClose={() => setSuccess("")} sx={{ mb: 2 }}>
-          {success}
-        </Alert>
-      )}
+        {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 3 }}>{success}</Alert>}
 
-      <FormControl fullWidth sx={{ mb: 3 }}>
-        <InputLabel id="driver-select-label">Select Driver</InputLabel>
-        <Select
-          labelId="driver-select-label"
-          value={selectedDriver}
-          label="Select Driver"
-          onChange={(e) => setSelectedDriver(e.target.value)}
-        >
-          <MenuItem value="">
-            <em>None</em>
-          </MenuItem>
-          {drivers.map((driver) => (
-            <MenuItem key={driver._id} value={driver._id}>
-              {driver.name} ({driver.email})
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+        <Paper elevation={0} sx={{ p: 2, mb: 2.5, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+          <FormControl fullWidth>
+            <InputLabel id="driver-select-label">Select Driver</InputLabel>
+            <Select labelId="driver-select-label" value={selectedDriver} label="Select Driver" onChange={(e) => setSelectedDriver(e.target.value)}>
+              <MenuItem value=""><em>Choose a driver</em></MenuItem>
+              {drivers.map((driver) => <MenuItem key={driver._id} value={driver._id}>{driver.name} ({driver.email})</MenuItem>)}
+            </Select>
+          </FormControl>
+        </Paper>
 
-      {loading ? (
-        <Box display="flex" justifyContent="center" py={5}>
-          <CircularProgress />
-        </Box>
-      ) : pods.length === 0 ? (
-        <Typography>No PODs found for selected driver.</Typography>
-      ) : (
-        <>
-          {/* Table for larger screens */}
-          <Box sx={{ display: { xs: "none", sm: "block" }, overflowX: "auto" }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Upload Date</TableCell>
-                  <TableCell>Driver</TableCell>
-                  <TableCell>Notes</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {pods.map((pod) => (
-                  <TableRow key={pod._id}>
-                    <TableCell>
-                      {new Date(pod.uploadDate || Date.now()).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      {drivers.find((d) => d._id === pod.driverId)?.name || "-"}
-                    </TableCell>
-                    <TableCell>{pod.notes || "-"}</TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} justifyContent="center">
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleDownload(pod)}
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          onClick={() => handleDelete(pod._id)}
-                        >
-                          Delete
-                        </Button>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Box>
-
-          {/* Card layout for mobile */}
-          <Stack spacing={2} sx={{ display: { xs: "block", sm: "none" } }}>
+        {loading ? (
+          <Paper elevation={0} sx={{ p: 5, textAlign: "center", borderRadius: 5, border: "1px solid", borderColor: palette.line }}><CircularProgress /></Paper>
+        ) : !selectedDriver ? (
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+            <Typography fontWeight={950}>Select a driver</Typography>
+            <Typography sx={{ color: palette.muted }}>PODs are currently stored by driver, not by job.</Typography>
+          </Paper>
+        ) : pods.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+            <Typography fontWeight={950}>No PODs found</Typography>
+            <Typography sx={{ color: palette.muted }}>This driver has not uploaded delivery proof yet.</Typography>
+          </Paper>
+        ) : (
+          <Stack spacing={2}>
             {pods.map((pod) => (
-              <Paper key={pod._id} sx={{ p: 2 }}>
-                <Typography variant="subtitle1">
-                  Upload Date: {new Date(pod.uploadDate || Date.now()).toLocaleDateString()}
-                </Typography>
-                <Typography variant="body2">
-                  Driver: {drivers.find((d) => d._id === pod.driverId)?.name || "-"}
-                </Typography>
-                <Typography variant="body2">Notes: {pod.notes || "-"}</Typography>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mt={1}>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => handleDownload(pod)}
-                  >
-                    Download
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    size="small"
-                    onClick={() => handleDelete(pod._id)}
-                  >
-                    Delete
-                  </Button>
+              <Paper key={pod._id} elevation={0} sx={{ p: 2, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
+                  <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                    <Box sx={{ width: 46, height: 46, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.09), flexShrink: 0 }}><PictureAsPdfIcon /></Box>
+                    <Box>
+                      <Typography fontWeight={950} sx={{ color: palette.ink }}>{new Date(pod.uploadDate || Date.now()).toLocaleDateString()}</Typography>
+                      <Typography variant="body2" sx={{ color: palette.muted }}>Driver: {driverName(pod.driverId)}</Typography>
+                      <Typography variant="body2" sx={{ color: palette.muted, mt: 0.5 }}>{pod.notes || "No notes added."}</Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ minWidth: { sm: 220 } }}>
+                    <Button fullWidth variant="contained" startIcon={<DownloadIcon />} onClick={() => handleDownload(pod)} sx={{ borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Download</Button>
+                    <Button fullWidth variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => handleDelete(pod._id)} sx={{ borderRadius: 3, fontWeight: 900 }}>Delete</Button>
+                  </Stack>
                 </Stack>
               </Paper>
             ))}
           </Stack>
-        </>
-      )}
+        )}
+      </Box>
     </Box>
   );
 };

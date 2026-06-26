@@ -1,35 +1,65 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Box, Button, Container, Dialog, DialogActions, DialogContent,
-  DialogContentText, DialogTitle, Paper, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TextField,
-  Typography, Alert, MenuItem
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  MenuItem,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import EditIcon from "@mui/icons-material/Edit";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import { getAllTrucks, createTruck, updateTruck, deleteTruck } from "../../api";
 
 const statusOptions = ["available", "on route", "maintenance"];
+const palette = {
+  ink: "#0b1220",
+  muted: "#697586",
+  line: "rgba(15, 23, 42, 0.075)",
+  panel: "rgba(255, 255, 255, 0.88)",
+  heroStart: "#050b18",
+  heroMid: "#0b2f3a",
+  heroEnd: "#0c5f5b",
+  teal: "#0e7c76",
+  amber: "#b76e00",
+  emerald: "#07866f",
+  rose: "#b42318",
+};
+
+const statusMeta = (status) => {
+  if (status === "maintenance") return { color: palette.rose, label: "Maintenance" };
+  if (status === "on route") return { color: palette.amber, label: "On route" };
+  return { color: palette.emerald, label: "Available" };
+};
 
 const Trucks = () => {
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  const [formData, setFormData] = useState({
-    truckNumber: "",
-    capacity: "",
-    status: "available",
-  });
-
+  const [formData, setFormData] = useState({ truckNumber: "", capacity: "", status: "available" });
   const [editTruckId, setEditTruckId] = useState(null);
   const [deleteTruckId, setDeleteTruckId] = useState(null);
+
+  const maintenanceTrucks = useMemo(() => trucks.filter((truck) => truck.status === "maintenance"), [trucks]);
 
   const fetchTrucks = async () => {
     setLoading(true);
     try {
       const res = await getAllTrucks();
-      setTrucks(res.data.data);
-    } catch (err) {
+      setTrucks(res.data.data || []);
+    } catch {
       setError("Failed to load trucks");
     } finally {
       setLoading(false);
@@ -40,30 +70,25 @@ const Trucks = () => {
     fetchTrucks();
   }, []);
 
-  const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const resetForm = () => {
+    setEditTruckId(null);
+    setFormData({ truckNumber: "", capacity: "", status: "available" });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSuccess("");
-
-    if (!formData.truckNumber || !formData.capacity) {
-      setError("Please fill all required fields");
-      return;
-    }
-
+    if (!formData.truckNumber || !formData.capacity) return setError("Please fill all required fields");
     try {
       if (editTruckId) {
         await updateTruck(editTruckId, formData);
-        setSuccess("Truck updated successfully");
+        setSuccess("Truck updated successfully.");
       } else {
         await createTruck(formData);
-        setSuccess("Truck created successfully");
+        setSuccess("Truck created successfully.");
       }
-      setFormData({ truckNumber: "", capacity: "", status: "available" });
-      setEditTruckId(null);
+      resetForm();
       fetchTrucks();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save truck");
@@ -72,21 +97,17 @@ const Trucks = () => {
 
   const handleEdit = (truck) => {
     setEditTruckId(truck._id);
-    setFormData({
-      truckNumber: truck.truckNumber,
-      capacity: truck.capacity,
-      status: truck.status,
-    });
+    setFormData({ truckNumber: truck.truckNumber, capacity: truck.capacity, status: truck.status });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDeleteClick = (id) => setDeleteTruckId(id);
-  const handleDeleteCancel = () => setDeleteTruckId(null);
   const handleDeleteConfirm = async () => {
     if (!deleteTruckId) return;
-    setError(""); setSuccess("");
+    setError("");
+    setSuccess("");
     try {
       await deleteTruck(deleteTruckId);
-      setSuccess("Truck deleted successfully");
+      setSuccess("Truck deleted successfully.");
       setDeleteTruckId(null);
       fetchTrucks();
     } catch (err) {
@@ -95,163 +116,101 @@ const Trucks = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: { xs: 2, sm: 4 } }}>
-      <Typography variant="h4" align="center" gutterBottom fontWeight="bold">
-        Manage Trucks
-      </Typography>
+    <Box sx={{ minHeight: "100vh", pt: { xs: 3, sm: 4 }, pb: 6, overflowX: "hidden", background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)` }}>
+      <Box sx={{ width: "100%", maxWidth: 1180, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
+        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3, borderRadius: 5, color: "white", background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)` }}>
+          <Chip label="Fleet" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
+          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>Fleet Management</Typography>
+          <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>Track trucks, capacity and maintenance state before assigning work.</Typography>
+        </Paper>
 
-      {error && <Alert severity="error" onClose={() => setError("")} sx={{ mb: 3, textAlign: "center" }}>{error}</Alert>}
-      {success && <Alert severity="success" onClose={() => setSuccess("")} sx={{ mb: 3, textAlign: "center" }}>{success}</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 3 }}>{success}</Alert>}
 
-      {/* Form */}
-      <Box
-        component="form"
-        onSubmit={handleSubmit}
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          mb: 4,
-          p: 3,
-          boxShadow: 3,
-          borderRadius: 2,
-          backgroundColor: "background.paper",
-        }}
-      >
-        <Typography variant="h6" align="center" mb={2}>
-          {editTruckId ? "Edit Truck" : "Create Truck"}
-        </Typography>
-
-        <TextField
-          label="Truck Number"
-          name="truckNumber"
-          value={formData.truckNumber}
-          onChange={handleChange}
-          required
-          fullWidth
-          inputProps={{ style: { textAlign: "center", textTransform: "uppercase" } }}
-          disabled={!!editTruckId}
-        />
-        <TextField
-          label="Capacity"
-          name="capacity"
-          type="number"
-          value={formData.capacity}
-          onChange={handleChange}
-          required
-          fullWidth
-          inputProps={{ style: { textAlign: "center" }, min: 0 }}
-        />
-        <TextField
-          select
-          label="Status"
-          name="status"
-          value={formData.status}
-          onChange={handleChange}
-          fullWidth
-          inputProps={{ style: { textAlign: "center" } }}
-        >
-          {statusOptions.map(option => (
-            <MenuItem key={option} value={option}>
-              {option.charAt(0).toUpperCase() + option.slice(1)}
-            </MenuItem>
-          ))}
-        </TextField>
-
-        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1 }}>
-          <Button type="submit" fullWidth variant="contained" size="large">
-            {editTruckId ? "Update Truck" : "Create Truck"}
-          </Button>
-          {editTruckId && (
-            <Button
-              variant="outlined"
-              fullWidth
-              color="secondary"
-              onClick={() => {
-                setEditTruckId(null);
-                setFormData({ truckNumber: "", capacity: "", status: "available" });
-                setError(""); setSuccess("");
-              }}
-            >
-              Cancel Edit
-            </Button>
-          )}
-        </Box>
-      </Box>
-
-      {/* Table for desktop, Cards for mobile */}
-      <TableContainer component={Paper} elevation={3} sx={{ overflowX: "auto", display: { xs: "none", sm: "block" } }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              {["Truck Number", "Capacity", "Status", "Actions"].map(header => (
-                <TableCell key={header} align="center" sx={{ fontWeight: "bold", bgcolor: "grey.100" }}>
-                  {header}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center">Loading trucks...</TableCell>
-              </TableRow>
-            ) : trucks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ fontStyle: "italic" }}>No trucks found.</TableCell>
-              </TableRow>
-            ) : (
-              trucks.map(truck => (
-                <TableRow key={truck._id} hover>
-                  <TableCell align="center">{truck.truckNumber}</TableCell>
-                  <TableCell align="center">{truck.capacity}</TableCell>
-                  <TableCell align="center" sx={{ textTransform: "capitalize" }}>{truck.status}</TableCell>
-                  <TableCell align="center">
-                    <Button variant="contained" size="small" onClick={() => handleEdit(truck)} sx={{ mr: 1 }}>Edit</Button>
-                    <Button variant="contained" color="error" size="small" onClick={() => handleDeleteClick(truck._id)}>Delete</Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Mobile cards */}
-      <Box sx={{ display: { xs: "block", sm: "none" } }}>
-        {loading ? (
-          <Typography align="center">Loading trucks...</Typography>
-        ) : trucks.length === 0 ? (
-          <Typography align="center" sx={{ fontStyle: "italic" }}>No trucks found.</Typography>
-        ) : (
-          trucks.map(truck => (
-            <Paper key={truck._id} sx={{ p: 2, mb: 2 }}>
-              <Typography><b>Truck:</b> {truck.truckNumber}</Typography>
-              <Typography><b>Capacity:</b> {truck.capacity}</Typography>
-              <Typography sx={{ textTransform: "capitalize" }}><b>Status:</b> {truck.status}</Typography>
-              <Box sx={{ mt: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>
-                <Button size="small" variant="contained" onClick={() => handleEdit(truck)}>Edit</Button>
-                <Button size="small" variant="contained" color="error" onClick={() => handleDeleteClick(truck._id)}>Delete</Button>
-              </Box>
-            </Paper>
-          ))
+        {maintenanceTrucks.length > 0 && (
+          <Alert severity="warning" sx={{ mb: 2, borderRadius: 3 }}>
+            {maintenanceTrucks.length} truck{maintenanceTrucks.length === 1 ? "" : "s"} currently marked for maintenance.
+          </Alert>
         )}
-      </Box>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={Boolean(deleteTruckId)} onClose={handleDeleteCancel}>
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete this truck? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: "center", pb: 2 }}>
-          <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "0.78fr 1.22fr" }, gap: 2.5, alignItems: "start" }}>
+          <Paper component="form" onSubmit={handleSubmit} elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+              <Box sx={{ width: 46, height: 46, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.1) }}><LocalShippingIcon /></Box>
+              <Box>
+                <Typography fontWeight={950} sx={{ color: palette.ink }}>{editTruckId ? "Edit Truck" : "Add Truck"}</Typography>
+                <Typography variant="body2" sx={{ color: palette.muted }}>Keep fleet details clean and dispatch-ready.</Typography>
+              </Box>
+            </Stack>
+            <Stack spacing={1.5}>
+              <TextField label="Truck Number" name="truckNumber" value={formData.truckNumber} onChange={(e) => setFormData((p) => ({ ...p, truckNumber: e.target.value.toUpperCase() }))} required fullWidth disabled={Boolean(editTruckId)} />
+              <TextField label="Capacity" name="capacity" type="number" value={formData.capacity} onChange={(e) => setFormData((p) => ({ ...p, capacity: e.target.value }))} required fullWidth inputProps={{ min: 0 }} />
+              <TextField select label="Status" name="status" value={formData.status} onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value }))} fullWidth>
+                {statusOptions.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+              </TextField>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <Button type="submit" fullWidth variant="contained" size="large" sx={{ minHeight: 56, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}>
+                  {editTruckId ? "Update Truck" : "Create Truck"}
+                </Button>
+                {editTruckId && <Button fullWidth variant="outlined" onClick={resetForm} sx={{ minHeight: 56, borderRadius: 3, fontWeight: 900 }}>Cancel</Button>}
+              </Stack>
+            </Stack>
+          </Paper>
+
+          <Stack spacing={2}>
+            <Typography variant="h5" fontWeight={950} sx={{ color: palette.ink, letterSpacing: "-0.045em" }}>Fleet</Typography>
+            {loading ? (
+              <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: palette.line }}>Loading trucks...</Paper>
+            ) : trucks.length === 0 ? (
+              <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+                <Typography fontWeight={900}>No trucks yet</Typography>
+                <Typography sx={{ color: palette.muted }}>Add your first truck to start assigning work.</Typography>
+              </Paper>
+            ) : (
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                {trucks.map((truck) => {
+                  const meta = statusMeta(truck.status);
+                  return (
+                    <Paper key={truck._id} elevation={0} sx={{ p: 2, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                          <Box>
+                            <Typography fontWeight={950} sx={{ color: palette.ink }}>{truck.truckNumber}</Typography>
+                            <Typography variant="body2" sx={{ color: palette.muted }}>Capacity: {truck.capacity || "—"}</Typography>
+                          </Box>
+                          <Chip label={meta.label} sx={{ color: meta.color, bgcolor: alpha(meta.color, 0.1), fontWeight: 900 }} />
+                        </Stack>
+                        {truck.status === "maintenance" && (
+                          <Stack direction="row" spacing={1} alignItems="center" sx={{ color: palette.rose }}>
+                            <BuildCircleOutlinedIcon fontSize="small" />
+                            <Typography variant="body2" fontWeight={850}>Maintenance attention needed</Typography>
+                          </Stack>
+                        )}
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                          <Button fullWidth variant="contained" startIcon={<EditIcon />} onClick={() => handleEdit(truck)} sx={{ minHeight: 48, borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Edit</Button>
+                          <Button fullWidth variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setDeleteTruckId(truck._id)} sx={{ minHeight: 48, borderRadius: 3, fontWeight: 900 }}>Delete</Button>
+                        </Stack>
+                      </Stack>
+                    </Paper>
+                  );
+                })}
+              </Box>
+            )}
+          </Stack>
+        </Box>
+
+        <Dialog open={Boolean(deleteTruckId)} onClose={() => setDeleteTruckId(null)} PaperProps={{ sx: { borderRadius: 5 } }}>
+          <DialogTitle sx={{ fontWeight: 950 }}>Delete this truck?</DialogTitle>
+          <DialogContent>
+            <DialogContentText>If this truck is assigned to jobs or drivers, backend validation should protect those records.</DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button onClick={() => setDeleteTruckId(null)}>Cancel</Button>
+            <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </Box>
   );
 };
 
