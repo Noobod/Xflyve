@@ -7,6 +7,11 @@ const jobPodSchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
+    },
     fileUrl: {
       type: String,
       required: true,

@@ -1,7 +1,10 @@
 const { body, param } = require("express-validator");
 
 // Driver ownership is derived from JWT in the controller.
-exports.uploadPODValidator = [];
+exports.uploadPODValidator = [
+  body("jobId").optional().isMongoId().withMessage("Valid jobId is required"),
+  body("notes").optional().isString().withMessage("Notes must be a string"),
+];
 
 // Validate POD ID in URL param
 exports.podIdValidator = [

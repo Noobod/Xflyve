@@ -31,6 +31,18 @@ const jobSchema = new mongoose.Schema(
       ref: "Truck",
       required: true,
     },
+    podIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "JobPod",
+      },
+    ],
+    diaryIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "WorkDiary",
+      },
+    ],
     jobDate: {               
       type: Date,
       required: true,
@@ -55,8 +67,20 @@ const jobSchema = new mongoose.Schema(
       required: true,
     },
   }, 
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
+
+jobSchema.virtual("assignedDriver").get(function () {
+  return this.assignedTo;
+});
+
+jobSchema.virtual("assignedDriver").set(function (value) {
+  this.assignedTo = value;
+});
 
 jobSchema.pre("save", function (next) {
   if (this.isModified("status")) {

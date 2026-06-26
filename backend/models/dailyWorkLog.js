@@ -11,6 +11,10 @@ const dailyWorkLogSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    workDate: {
+      type: Date,
+      default: null,
+    },
     hours: {
       type: Number,
       default: 0,
@@ -57,6 +61,11 @@ const dailyWorkLogSchema = new mongoose.Schema(
         ref: "Job",
       },
     ],
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
     notes: {
       type: String,
       trim: true,
@@ -64,5 +73,17 @@ const dailyWorkLogSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+dailyWorkLogSchema.pre("validate", function (next) {
+  if (!this.workDate && this.date) {
+    this.workDate = this.date;
+  }
+
+  if (!this.date && this.workDate) {
+    this.date = this.workDate;
+  }
+
+  next();
+});
 
 module.exports = mongoose.model("DailyWorkLog", dailyWorkLogSchema);

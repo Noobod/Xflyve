@@ -7,6 +7,20 @@ const workDiarySchema = new mongoose.Schema(
       ref: "Driver",
       required: true,
     },
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
+    },
+    truckId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Truck",
+      default: null,
+    },
+    workDate: {
+      type: Date,
+      default: null,
+    },
     fileUrl: {
       type: String,
       required: true,

@@ -1,27 +1,74 @@
 const mongoose = require("mongoose");
 const DailyWorkLog = require("../models/dailyWorkLog");
+const Job = require("../models/job");
 const logger = require("../utils/logger");
+
+const normalizeDateOnly = (value) => {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+};
+
+const getOwnedJobIds = async (jobIds = [], driverId) => {
+  if (!Array.isArray(jobIds) || jobIds.length === 0) return [];
+
+  const uniqueJobIds = [...new Set(jobIds.map((id) => id.toString()))];
+  const invalidJobId = uniqueJobIds.find((id) => !mongoose.Types.ObjectId.isValid(id));
+  if (invalidJobId) {
+    const error = new Error("Invalid jobId in jobIds");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const jobs = await Job.find({
+    _id: { $in: uniqueJobIds },
+    assignedTo: driverId,
+  }).select("_id").lean();
+
+  if (jobs.length !== uniqueJobIds.length) {
+    const error = new Error("One or more jobs are not assigned to this driver");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return uniqueJobIds;
+};
 
 /**
  * Create a new daily work log.
  * Uses driverId from JWT token (req.user.id)
- * jobIds is not accepted from client, always empty array on creation.
+ * jobIds is optional and must belong to the authenticated driver.
  */
 exports.createWorkLog = async (req, res) => {
-  const { date, hours, kilometers, notes, localStartTime, localEndTime, interstateStartKm, interstateEndKm, deliveriesDone, deliveryLocations } = req.body;
+  const { date, workDate, hours, kilometers, notes, localStartTime, localEndTime, interstateStartKm, interstateEndKm, deliveriesDone, deliveryLocations, jobIds } = req.body;
   const driverId = req.user.id || req.user._id; // use driverId from token
+  const effectiveDate = workDate || date;
 
-  if (!driverId || !date || !mongoose.Types.ObjectId.isValid(driverId)) {
+  if (!driverId || !effectiveDate || !mongoose.Types.ObjectId.isValid(driverId)) {
     return res.status(400).json({
       success: false,
-      message: "Valid driverId (from token) and date are required",
+      message: "Valid driverId (from token) and work date are required",
     });
   }
 
   try {
+    const normalizedWorkDate = normalizeDateOnly(effectiveDate);
+    if (!normalizedWorkDate) {
+      return res.status(400).json({ success: false, message: "Invalid work date" });
+    }
+
+    const ownedJobIds = await getOwnedJobIds(jobIds, driverId);
+
     const newLog = new DailyWorkLog({
       driverId,
-      date,
+      date: normalizedWorkDate,
+      workDate: normalizedWorkDate,
       hours,
       kilometers,
       notes,
@@ -31,7 +78,7 @@ exports.createWorkLog = async (req, res) => {
       interstateEndKm,
       deliveriesDone,
       deliveryLocations,
-      jobIds: [], // Always empty array on create
+      jobIds: ownedJobIds,
     });
 
     await newLog.save();
@@ -43,9 +90,9 @@ exports.createWorkLog = async (req, res) => {
     });
   } catch (err) {
     logger.error("Create WorkLog error: %o", err);
-    return res.status(500).json({
+    return res.status(err.statusCode || 500).json({
       success: false,
-      message: "Server error",
+      message: err.statusCode ? err.message : "Server error",
     });
   }
 };
@@ -121,6 +168,7 @@ exports.updateWorkLog = async (req, res) => {
 
   const allowedUpdates = [
     "date",
+    "workDate",
     "hours",
     "kilometers",
     "notes",
@@ -153,6 +201,19 @@ exports.updateWorkLog = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
+    if (updates.date || updates.workDate) {
+      const normalizedWorkDate = normalizeDateOnly(updates.workDate || updates.date);
+      if (!normalizedWorkDate) {
+        return res.status(400).json({ success: false, message: "Invalid work date" });
+      }
+      updates.date = normalizedWorkDate;
+      updates.workDate = normalizedWorkDate;
+    }
+
+    if (updates.jobIds !== undefined) {
+      updates.jobIds = await getOwnedJobIds(updates.jobIds, log.driverId);
+    }
+
     Object.assign(log, updates);
     await log.save();
 
@@ -163,7 +224,10 @@ exports.updateWorkLog = async (req, res) => {
     });
   } catch (err) {
     logger.error("Update WorkLog error: %o", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    return res.status(err.statusCode || 500).json({
+      success: false,
+      message: err.statusCode ? err.message : "Server error",
+    });
   }
 };
 
@@ -222,8 +286,8 @@ exports.getAllLogsForAdmin = async (req, res) => {
     // Populate driver details and job details for admin view
     const logs = await DailyWorkLog.find(query)
       .populate("driverId", "name email")  // adjust fields as per your driver model
-      .populate("jobIds", "jobNumber description") // adjust job fields accordingly
-      .sort({ date: -1 });
+      .populate("jobIds", "title pickupLocation deliveryLocation jobDate status")
+      .sort({ workDate: -1, date: -1 });
 
     return res.status(200).json({ success: true, data: logs });
   } catch (err) {

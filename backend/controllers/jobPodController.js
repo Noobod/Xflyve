@@ -1,4 +1,5 @@
 const JobPod = require("../models/jobPod");
+const Job = require("../models/job");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
 const cloudinary = require("../config/cloudinary");
@@ -14,11 +15,27 @@ exports.uploadPOD = async (req, res) => {
       return res.status(400).json({ success: false, message: "PDF file is required" });
     }
 
-    const { notes } = req.body;
+    const { notes, jobId } = req.body;
     const driverId = req.user.id;
 
     if (!driverId || !mongoose.Types.ObjectId.isValid(driverId)) {
       return res.status(400).json({ success: false, message: "Valid authenticated driver is required" });
+    }
+
+    let linkedJob = null;
+    if (jobId) {
+      if (!mongoose.Types.ObjectId.isValid(jobId)) {
+        return res.status(400).json({ success: false, message: "Invalid jobId" });
+      }
+
+      linkedJob = await Job.findById(jobId);
+      if (!linkedJob) {
+        return res.status(404).json({ success: false, message: "Job not found" });
+      }
+
+      if (linkedJob.assignedTo.toString() !== driverId.toString()) {
+        return res.status(403).json({ success: false, message: "Cannot upload POD for another driver's job" });
+      }
     }
 
     const streamUpload = (buffer) => {
@@ -35,12 +52,21 @@ exports.uploadPOD = async (req, res) => {
 
     const newPOD = new JobPod({
       driverId,
+      jobId: linkedJob?._id || null,
       notes,
       fileUrl: result.secure_url,
       publicId: result.public_id,
     });
 
     await newPOD.save();
+
+    if (linkedJob) {
+      await Job.updateOne(
+        { _id: linkedJob._id },
+        { $addToSet: { podIds: newPOD._id } }
+      );
+    }
+
     return res.status(201).json({ success: true, message: "POD uploaded", data: newPOD });
   } catch (err) {
     logger.error("Upload POD error: %o", err);
@@ -91,7 +117,9 @@ exports.listPODsByDriver = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    const pods = await JobPod.find({ driverId }).sort({ createdAt: -1 });
+    const pods = await JobPod.find({ driverId })
+      .populate("jobId", "title pickupLocation deliveryLocation jobDate status")
+      .sort({ createdAt: -1 });
     return res.status(200).json({ success: true, data: pods });
   } catch (err) {
     logger.error("List PODs by driver error: %o", err);
@@ -152,6 +180,10 @@ exports.deletePOD = async (req, res) => {
       await cloudinary.uploader.destroy(pod.publicId, { resource_type: "raw" });
     }
 
+    if (pod.jobId) {
+      await Job.updateOne({ _id: pod.jobId }, { $pull: { podIds: pod._id } });
+    }
+
     await JobPod.deleteOne({ _id: podId });
 
     return res.status(200).json({ success: true, message: "POD deleted" });
@@ -168,6 +200,7 @@ exports.listAllPODs = async (req, res) => {
   try {
     const pods = await JobPod.find()
       .populate("driverId", "name email driverType role")
+      .populate("jobId", "title pickupLocation deliveryLocation jobDate status")
       .sort({ createdAt: -1 });
     return res.status(200).json({ success: true, data: pods });
   } catch (err) {
