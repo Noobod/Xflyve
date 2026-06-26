@@ -3,6 +3,14 @@ const jwt = require("jsonwebtoken");
 const Driver = require("../models/driver");
 const logger = require("../utils/logger");
 
+const toAuthUser = (user) => ({
+  id: user._id,
+  _id: user._id,
+  name: user.name,
+  role: user.role,
+  driverType: user.driverType,
+});
+
 // @desc    Driver signup
 exports.signup = async (req, res) => {
   try {
@@ -19,12 +27,10 @@ exports.signup = async (req, res) => {
       return res.status(400).json({ status: "fail", message: "Email already in use" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-
     const newDriver = new Driver({
       name,
       email,
-      password: hashedPassword,
+      password,
       driverType,
       role: "driver", // force role for signup
     });
@@ -66,12 +72,7 @@ exports.login = async (req, res) => {
     res.status(200).json({
       status: "success",
       token,
-      data: {
-        id: user._id,
-        name: user.name,
-        role: user.role,
-        driverType: user.driverType,
-      },
+      data: toAuthUser(user),
     });
   } catch (err) {
     logger.error("Login failed: %o", err);
@@ -87,7 +88,7 @@ exports.getProfile = async (req, res) => {
       return res.status(404).json({ status: "fail", message: "User not found" });
     }
 
-    res.status(200).json({ status: "success", data: user });
+    res.status(200).json({ status: "success", data: toAuthUser(user) });
   } catch (err) {
     logger.error("Get profile failed: %o", err);
     res.status(500).json({ status: "error", message: "Server error fetching profile" });

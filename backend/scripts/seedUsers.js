@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { faker } = require("@faker-js/faker");
+const bcrypt = require("bcryptjs");
 require("dotenv").config();
 
 const Driver = require("../models/driver");
@@ -17,7 +18,7 @@ async function seedDrivers() {
       fakeDrivers.push({
         name: faker.person.fullName(),
         email: faker.internet.email().toLowerCase(),
-        password: "password123", // 🔥 Plain password for presentation
+        password: await bcrypt.hash("password123", 12),
         role: "driver",
         driverType: faker.helpers.arrayElement(["local", "interstate"]),
       });

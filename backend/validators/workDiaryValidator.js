@@ -1,8 +1,6 @@
 const { body, param } = require("express-validator");
 
-exports.uploadWorkDiaryValidator = [
-  body("driverId").isMongoId().withMessage("Valid driverId is required"),
-];
+exports.uploadWorkDiaryValidator = [];
 
 exports.workDiaryIdValidator = [
   param("id").isMongoId().withMessage("Valid Work Diary ID is required"),

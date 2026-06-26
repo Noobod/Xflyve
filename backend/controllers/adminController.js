@@ -1,6 +1,5 @@
 const path = require("path");
 const fs = require("fs");
-const bcrypt = require("bcryptjs");
 
 const Driver = require("../models/driver");
 const Job = require("../models/job");
@@ -144,13 +143,10 @@ exports.createDriver = async (req, res) => {
       return res.status(400).json({ status: "fail", message: "Email already in use" });
     }
 
-    // Hash password before saving
-    const hashedPassword = await bcrypt.hash(password, 12);
-
     const newDriver = new Driver({
       name,
       email,
-      password: hashedPassword,
+      password,
       driverType,
       role: "driver", // force role to driver
     });

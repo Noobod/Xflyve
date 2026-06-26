@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
 const Driver = require("../models/driver");
 require("dotenv").config();
 
@@ -14,12 +13,10 @@ async function createAdmin() {
       process.exit(0);
     }
 
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-
     const adminUser = new Driver({
       name: "Admin User",
       email: "admin@example.com",
-      password: hashedPassword,
+      password: "admin123",
       role: "admin",
       driverType: "local", // or leave blank, admin can have any or none
     });

@@ -17,17 +17,17 @@ router.get("/stats", authMiddleware, requireAdmin, adminController.getSystemStat
 router.get("/download-all-pods", authMiddleware, requireAdmin, adminController.downloadAllPods);
 
 /* ==========================================================
-   🔥 TEMPORARY PUBLIC ROUTE FOR PRESENTATION PURPOSES
-   Shows 100–500 fake users without requiring login
+   Demo driver route kept for compatibility, but protected.
    ========================================================== */
-router.get("/show-all-drivers", async (req, res) => {
+router.get("/show-all-drivers", authMiddleware, requireAdmin, async (req, res) => {
   try {
     // Limit to 500 if you seeded 500 users, adjust if needed
-    const drivers = await Driver.find().limit(500);
+    const drivers = await Driver.find().select("-password").limit(500);
 
     return res.json({
       success: true,
       total: drivers.length,
+      users: drivers,
       data: drivers,
     });
   } catch (err) {

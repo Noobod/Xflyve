@@ -14,10 +14,11 @@ exports.uploadPOD = async (req, res) => {
       return res.status(400).json({ success: false, message: "PDF file is required" });
     }
 
-    const { driverId, notes } = req.body;
+    const { notes } = req.body;
+    const driverId = req.user.id;
 
     if (!driverId || !mongoose.Types.ObjectId.isValid(driverId)) {
-      return res.status(400).json({ success: false, message: "Valid driverId is required" });
+      return res.status(400).json({ success: false, message: "Valid authenticated driver is required" });
     }
 
     const streamUpload = (buffer) => {

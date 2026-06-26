@@ -11,6 +11,10 @@ const jobPodSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    publicId: {
+      type: String,
+      trim: true,
+    },
     uploadDate: {
       type: Date,
       default: Date.now,

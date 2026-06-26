@@ -1,4 +1,7 @@
 const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$.{53}$/;
 
 const driverSchema = new mongoose.Schema(
   {
@@ -35,11 +38,16 @@ const driverSchema = new mongoose.Schema(
   }
 );
 
-// Pre-save hook to ensure email is always lowercase
-driverSchema.pre("save", function (next) {
+// Pre-save hook to normalize email and protect password hashing centrally.
+driverSchema.pre("save", async function (next) {
   if (this.isModified("email")) {
     this.email = this.email.toLowerCase();
   }
+
+  if (this.isModified("password") && !BCRYPT_HASH_REGEX.test(this.password)) {
+    this.password = await bcrypt.hash(this.password, 12);
+  }
+
   next();
 });
 

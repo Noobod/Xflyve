@@ -13,10 +13,11 @@ exports.uploadWorkDiary = async (req, res) => {
       return res.status(400).json({ success: false, message: "PDF file is required" });
     }
 
-    const { driverId, notes } = req.body;
+    const { notes } = req.body;
+    const driverId = req.user.id;
 
     if (!driverId || !mongoose.Types.ObjectId.isValid(driverId)) {
-      return res.status(400).json({ success: false, message: "Valid driverId is required" });
+      return res.status(400).json({ success: false, message: "Valid authenticated driver is required" });
     }
 
     const streamUpload = (buffer) => {
@@ -61,7 +62,8 @@ exports.getWorkDiary = async (req, res) => {
     const workDiary = await WorkDiary.findById(id);
     if (!workDiary) return res.status(404).json({ success: false, message: "Work diary not found" });
 
-    if (req.user.role !== "admin") {
+    const userId = req.user._id || req.user.id;
+    if (req.user.role !== "admin" && workDiary.driverId.toString() !== userId.toString()) {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
