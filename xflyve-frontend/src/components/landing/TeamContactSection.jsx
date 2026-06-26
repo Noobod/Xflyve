@@ -1,172 +1,150 @@
 import React from "react";
-import { Box, Typography, Grid, Paper, Avatar, Link } from "@mui/material";
+import { Box, Typography, Container, Button, Stack, Link } from "@mui/material";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
+import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 
-const team = [
-  {
-    name: "Parampreet Singh",
-    role: "Founder & CEO",
-    phone: "0423347XXX",
-  },
+const contactDetails = [
+  { icon: <EmailIcon />, label: "Email", value: "XYZ@xflyve.com", href: "mailto:business@xflyve.com" },
+  { icon: <PhoneIcon />, label: "Phone", value: "0423347XXX", href: "tel:0423347000" },
 ];
 
 const TeamSection = () => {
   return (
     <section id="team&contact-section">
-      <Box sx={{ py: { xs: 8, md: 10 }, px: { xs: 2, md: 6 }, backgroundColor: "#f0f4f8" }}>
-        <Typography
-          variant="h4"
-          align="center"
-          gutterBottom
-          sx={{ fontWeight: 700, mb: { xs: 4, md: 6 }, color: "#1a202c", fontSize: { xs: "1.8rem", md: "2.5rem" } }}
-        >
-          Team & Contact
-        </Typography>
-
-        <Grid
-          container
-          justifyContent="center"
-          alignItems="stretch"
-          spacing={{ xs: 3, md: 4 }}
-        >
-          {team.map(({ name, role, phone }, index) => (
-            <Grid
-              item
-              key={index}
-              xs={12}
-              sm={8}
-              md={6}
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                width: "100%",
-              }}
-            >
-              <Paper
-                elevation={6}
+      <Box sx={{ py: { xs: 7, md: 11 }, backgroundColor: "#FFFFFF" }}>
+        <Container maxWidth="lg">
+          <Box
+            sx={{
+              p: { xs: 2.5, sm: 3.5, md: 5 },
+              borderRadius: { xs: "30px", md: "40px" },
+              background:
+                "radial-gradient(circle at top right, rgba(20,184,166,0.18), transparent 30%), linear-gradient(135deg, #071827 0%, #0F172A 100%)",
+              color: "#FFFFFF",
+              border: "1px solid rgba(153, 246, 228, 0.16)",
+              boxShadow: "0 30px 80px rgba(7, 24, 39, 0.18)",
+              display: "flex",
+              flexDirection: { xs: "column", md: "row" },
+              gap: { xs: 3, md: 5 },
+              alignItems: { xs: "stretch", md: "center" },
+              justifyContent: "space-between",
+            }}
+          >
+            <Box sx={{ maxWidth: 620 }}>
+              <Box
                 sx={{
-                  p: { xs: 4, md: 5 },
-                  textAlign: "center",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  borderRadius: 4,
-                  height: "auto",
-                  width: "100%",
-                  maxWidth: 400,
-                  boxSizing: "border-box",
-                  justifyContent: "space-between",
-                  transition: "all 0.3s ease",
-                  backgroundColor: "#fff",
-                  cursor: "default",
-                  "&:hover": {
-                    boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-                    transform: "translateY(-6px)",
-                  },
-                  userSelect: "none",
+                  width: 54,
+                  height: 54,
+                  borderRadius: "20px",
+                  display: "grid",
+                  placeItems: "center",
+                  bgcolor: "rgba(20, 184, 166, 0.14)",
+                  color: "#5EEAD4",
+                  mb: 2,
                 }}
               >
-                <Avatar
-                  sx={{
-                    width: 100,
-                    height: 100,
-                    mb: 3,
-                    bgcolor: "primary.main",
-                    fontSize: 42,
-                    fontWeight: 700,
-                    color: "#fff",
-                  }}
-                >
-                  {name.charAt(0)}
-                </Avatar>
-                <Typography variant="h6" fontWeight={700} color="#111" mb={1} sx={{ fontSize: { xs: "1.2rem", md: "1.5rem" } }}>
-                  {name}
-                </Typography>
-                <Typography variant="subtitle1" color="text.secondary" mb={3} sx={{ fontSize: { xs: "0.9rem", md: "1rem" } }}>
-                  {role}
-                </Typography>
+                <CalendarMonthRoundedIcon />
+              </Box>
+              <Typography
+                sx={{
+                  color: "#5EEAD4",
+                  fontWeight: 950,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  fontSize: "0.78rem",
+                }}
+              >
+                Request demo
+              </Typography>
+              <Typography
+                variant="h2"
+                sx={{
+                  mt: 1.4,
+                  fontWeight: 950,
+                  letterSpacing: "-0.055em",
+                  lineHeight: 1.05,
+                  fontSize: { xs: "2rem", md: "3.15rem" },
+                }}
+              >
+                See how XFlyve could fit your transport workflow.
+              </Typography>
+              <Typography sx={{ mt: 2, color: "#CBD5E1", lineHeight: 1.75 }}>
+                Book a practical walkthrough for jobs, drivers, PODs, work
+                logs, compliance records and owner review workflows. No booking
+                backend is connected yet — this is a contact placeholder.
+              </Typography>
+            </Box>
 
+            <Stack
+              spacing={1.5}
+              sx={{
+                width: { xs: "100%", md: 360 },
+                flex: "0 0 auto",
+              }}
+            >
+              <Button
+                variant="contained"
+                endIcon={<ArrowForwardRoundedIcon />}
+                href="mailto:business@xflyve.com?subject=XFlyve demo request"
+                sx={{
+                  minHeight: 56,
+                  borderRadius: "18px",
+                  textTransform: "none",
+                  fontWeight: 950,
+                  bgcolor: "#14B8A6",
+                  color: "#042F2E",
+                  boxShadow: "0 18px 36px rgba(20, 184, 166, 0.24)",
+                  "&:hover": { bgcolor: "#5EEAD4" },
+                }}
+              >
+                Book Demo
+              </Button>
+
+              {contactDetails.map((item) => (
                 <Box
+                  key={item.label}
                   sx={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 1,
-                    justifyContent: "center",
+                    gap: 1.5,
+                    p: 1.75,
+                    borderRadius: "18px",
+                    bgcolor: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.1)",
                   }}
                 >
-                  <PhoneIcon color="primary" sx={{ fontSize: 22 }} />
-                  <Typography variant="body1" sx={{ fontWeight: 600, fontSize: { xs: "0.9rem", md: "1rem" } }}>
-                    {phone}
-                  </Typography>
+                  <Box
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "15px",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#5EEAD4",
+                      bgcolor: "rgba(20, 184, 166, 0.12)",
+                      "& svg": { fontSize: 21 },
+                    }}
+                  >
+                    {item.icon}
+                  </Box>
+                  <Box>
+                    <Typography sx={{ color: "#94A3B8", fontSize: "0.78rem", fontWeight: 800 }}>
+                      {item.label}
+                    </Typography>
+                    <Link
+                      href={item.href}
+                      underline="hover"
+                      sx={{ color: "#FFFFFF", fontWeight: 850 }}
+                    >
+                      {item.value}
+                    </Link>
+                  </Box>
                 </Box>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-
-        {/* Email Section */}
-        <Box
-          sx={{
-            mt: { xs: 6, md: 8 },
-            display: "flex",
-            justifyContent: "center",
-            px: 2,
-          }}
-        >
-          <Paper
-            elevation={4}
-            sx={{
-              p: { xs: 3, md: 5 },
-              borderRadius: 6,
-              width: "100%",
-              maxWidth: 450,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-              background: "linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%)",
-              color: "white",
-              boxShadow: "0 12px 30px rgba(255, 126, 95, 0.4)",
-              userSelect: "text",
-            }}
-          >
-            <Box
-              sx={{
-                bgcolor: "rgba(255,255,255,0.3)",
-                borderRadius: "50%",
-                p: 2,
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                boxShadow: "0 4px 12px rgba(255,255,255,0.5)",
-              }}
-            >
-              <EmailIcon sx={{ fontSize: 44, color: "white" }} />
-            </Box>
-            <Typography
-              variant="h6"
-              sx={{
-                fontWeight: 700,
-                userSelect: "text",
-                textAlign: "center",
-                lineHeight: 1.4,
-                letterSpacing: 0.5,
-                fontSize: { xs: "1rem", md: "1.2rem" },
-              }}
-            >
-              Have questions or want to get in touch? <br />
-              Email us at{" "}
-              <Link
-                href="mailto:business@xflyve.com"
-                underline="always"
-                sx={{ color: "white", fontWeight: "bold" }}
-              >
-                XYZ@xflyve.com
-              </Link>
-            </Typography>
-          </Paper>
-        </Box>
+              ))}
+            </Stack>
+          </Box>
+        </Container>
       </Box>
     </section>
   );

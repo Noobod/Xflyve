@@ -1,56 +1,100 @@
 import React from "react";
-import { Box, Typography, Grid, List, ListItem, ListItemText } from "@mui/material";
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { Box, Typography, Container, Stack } from "@mui/material";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 
 const WhyChooseUs = () => {
   const points = [
-    "5+ Years of industry experience",
-    "Experienced & professional drivers",
-    "Fleet of well-maintained trucks",
-    "Competitive pricing and transparency",
-    "Dedicated customer support",
+    "Reduce owner admin time without adding another weekly wage.",
+    "Catch missing PODs, work logs and compliance records earlier.",
+    "Give drivers a simple mobile workflow instead of back-and-forth calls.",
+    "Prepare weekly driver pay data and invoices with more confidence.",
+    "Keep operations visible from phone, tablet or desktop.",
   ];
 
   return (
     <section id="whychoose-section">
-      <Box sx={{ py: { xs: 6, md: 8 }, px: { xs: 2, md: 6 } }}>
-        <Typography
-          variant="h4"
-          align="center"
-          gutterBottom
-          sx={{ fontWeight: 700, mb: { xs: 4, md: 6 }, fontSize: { xs: '1.8rem', md: '2.5rem' } }}
-        >
-          Why Choose Xflyve Logistics?
-        </Typography>
+      <Box sx={{ py: { xs: 7, md: 11 }, backgroundColor: "#F6F8FB" }}>
+        <Container maxWidth="lg">
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "0.9fr 1.1fr" },
+              gap: { xs: 4, md: 6 },
+              alignItems: "center",
+            }}
+          >
+            <Box
+              sx={{
+                p: { xs: 2.5, md: 4 },
+                borderRadius: "34px",
+                background:
+                  "linear-gradient(135deg, #071827 0%, #0F172A 58%, #0F766E 140%)",
+                color: "#FFFFFF",
+                boxShadow: "0 28px 70px rgba(7, 24, 39, 0.16)",
+              }}
+            >
+              <Typography
+                sx={{
+                  color: "#5EEAD4",
+                  fontWeight: 950,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  fontSize: "0.78rem",
+                }}
+              >
+                Owner value
+              </Typography>
+              <Typography
+                variant="h2"
+                sx={{
+                  mt: 1.5,
+                  fontWeight: 950,
+                  letterSpacing: "-0.055em",
+                  lineHeight: 1.05,
+                  fontSize: { xs: "2rem", md: "3rem" },
+                }}
+              >
+                Built to save the office from becoming a bottleneck.
+              </Typography>
+              <Typography sx={{ mt: 2, color: "#CBD5E1", lineHeight: 1.75 }}>
+                Small transport companies do not need more spreadsheets,
+                WhatsApp chasing or paper piles. They need a calm operating
+                system that helps each record arrive where it belongs.
+              </Typography>
+            </Box>
 
-        <Grid container justifyContent="center">
-          <Grid item xs={12} sm={10} md={8}>
-            <List>
-              {points.map((point, i) => (
-                <ListItem
-                  key={i}
+            <Stack spacing={1.5}>
+              {points.map((point) => (
+                <Box
+                  key={point}
                   sx={{
                     display: "flex",
+                    gap: 1.5,
                     alignItems: "flex-start",
-                    py: { xs: 1, md: 2 },
+                    p: { xs: 2, md: 2.25 },
+                    borderRadius: "22px",
+                    bgcolor: "#FFFFFF",
+                    border: "1px solid rgba(15, 23, 42, 0.08)",
+                    boxShadow: "0 14px 35px rgba(15, 23, 42, 0.035)",
                   }}
                 >
-                  <CheckCircleIcon
-                    color="primary"
-                    sx={{ mr: 2, mt: '4px', fontSize: { xs: 22, md: 28 } }}
+                  <CheckCircleRoundedIcon
+                    sx={{ color: "#0F766E", mt: 0.15, flexShrink: 0 }}
                   />
-                  <ListItemText
-                    primary={point}
-                    primaryTypographyProps={{
-                      fontSize: { xs: '0.95rem', md: '1.1rem' },
-                      lineHeight: 1.5,
+                  <Typography
+                    sx={{
+                      color: "#334155",
+                      fontWeight: 750,
+                      lineHeight: 1.55,
                     }}
-                  />
-                </ListItem>
+                  >
+                    {point}
+                  </Typography>
+                </Box>
               ))}
-            </List>
-          </Grid>
-        </Grid>
+            </Stack>
+          </Box>
+        </Container>
       </Box>
     </section>
   );
