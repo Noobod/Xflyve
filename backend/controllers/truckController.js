@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 const Truck = require("../models/truck");
+const Job = require("../models/job");
+const TruckAssignment = require("../models/dailyTruckAssignment");
 const logger = require("../utils/logger");
 
 /**
@@ -98,6 +100,18 @@ exports.deleteTruck = async (req, res) => {
   }
 
   try {
+    const [activeJob, assignment] = await Promise.all([
+      Job.exists({ assignedTruck: truckId, status: { $in: ["pending", "in-progress"] } }),
+      TruckAssignment.exists({ truckId }),
+    ]);
+
+    if (activeJob || assignment) {
+      return res.status(409).json({
+        success: false,
+        message: "Cannot delete truck because it is referenced by active jobs or assignments",
+      });
+    }
+
     const deleted = await Truck.findByIdAndDelete(truckId);
 
     if (!deleted) {

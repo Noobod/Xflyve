@@ -8,6 +8,8 @@ exports.createJobValidator = [
   body("pickupLocation").trim().notEmpty().withMessage("Pickup location is required").escape(),
   body("deliveryLocation").trim().notEmpty().withMessage("Delivery location is required").escape(),
   body("assignedTo").isMongoId().withMessage("Valid driver ID is required"),
+  body("assignedTruck").isMongoId().withMessage("Valid truck ID is required"),
+  body("jobDate").isISO8601().withMessage("Valid job date is required"),
   body("jobType").isIn(["interstate", "local"]).withMessage("Job type must be 'interstate' or 'local'"),
 ];
 
@@ -18,6 +20,8 @@ exports.updateJobValidator = [
   body("pickupLocation").optional().trim().notEmpty().withMessage("Pickup location cannot be empty").escape(),
   body("deliveryLocation").optional().trim().notEmpty().withMessage("Delivery location cannot be empty").escape(),
   body("assignedTo").optional().isMongoId().withMessage("Valid driver ID is required"),
+  body("assignedTruck").optional().isMongoId().withMessage("Valid truck ID is required"),
+  body("jobDate").optional().isISO8601().withMessage("Valid job date is required"),
   body("status").optional().isIn(["pending", "in-progress", "completed"]).withMessage("Invalid status"),
   body("jobType").optional().isIn(["interstate", "local"]).withMessage("Job type must be 'interstate' or 'local'"),
 ];

@@ -40,6 +40,12 @@ const jobSchema = new mongoose.Schema(
       enum: ["pending", "in-progress", "completed"],
       default: "pending",
     },
+    startedAt: {
+      type: Date,
+    },
+    completedAt: {
+      type: Date,
+    },
     podUrl: {
       type: String,
     },
@@ -51,5 +57,21 @@ const jobSchema = new mongoose.Schema(
   }, 
   { timestamps: true }
 );
+
+jobSchema.pre("save", function (next) {
+  if (this.isModified("status")) {
+    const now = new Date();
+
+    if (this.status === "in-progress" && !this.startedAt) {
+      this.startedAt = now;
+    }
+
+    if (this.status === "completed" && !this.completedAt) {
+      this.completedAt = now;
+    }
+  }
+
+  next();
+});
 
 module.exports = mongoose.model("Job", jobSchema);

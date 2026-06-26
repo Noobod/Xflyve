@@ -2,6 +2,45 @@ const mongoose = require("mongoose");
 const TruckAssignment = require("../models/dailyTruckAssignment");
 const logger = require("../utils/logger");
 
+const normalizeDateOnly = (value) => {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+};
+
+const dateRangeFor = (value) => {
+  const start = normalizeDateOnly(value);
+  if (!start) return null;
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+};
+
+const findAssignmentConflict = async ({ driverId, truckId, date, excludeId }) => {
+  const range = dateRangeFor(date);
+  if (!range) return { type: "invalid-date" };
+
+  const baseQuery = {
+    date: { $gte: range.start, $lt: range.end },
+    ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+  };
+
+  const [driverConflict, truckConflict] = await Promise.all([
+    TruckAssignment.findOne({ ...baseQuery, driverId }).lean(),
+    TruckAssignment.findOne({ ...baseQuery, truckId }).lean(),
+  ]);
+
+  if (driverConflict) return { type: "driver", assignment: driverConflict };
+  if (truckConflict) return { type: "truck", assignment: truckConflict };
+  return null;
+};
+
 /**
  * @desc Assign a truck to a driver on a specific date
  * @route POST /api/truck-assignments
@@ -15,16 +54,26 @@ exports.assignTruck = async (req, res) => {
   }
 
   try {
-    // Prevent duplicate assignment for the same truck, driver, and date
-    const existing = await TruckAssignment.findOne({ truckId, driverId, date }).lean();
-    if (existing) {
+    const normalizedDate = normalizeDateOnly(date);
+    if (!normalizedDate) {
+      return res.status(400).json({ success: false, message: "Invalid date" });
+    }
+
+    const conflict = await findAssignmentConflict({ truckId, driverId, date: normalizedDate });
+    if (conflict?.type === "driver") {
       return res.status(409).json({
         success: false,
-        message: "This truck is already assigned to this driver for the given date",
+        message: "This driver already has a truck assignment on the selected date",
+      });
+    }
+    if (conflict?.type === "truck") {
+      return res.status(409).json({
+        success: false,
+        message: "This truck is already assigned to another driver on the selected date",
       });
     }
 
-    const assignment = new TruckAssignment({ truckId, driverId, date });
+    const assignment = new TruckAssignment({ truckId, driverId, date: normalizedDate });
     await assignment.save();
 
     return res.status(201).json({
@@ -78,7 +127,15 @@ exports.getDriverAssignment = async (req, res) => {
   }
 
   try {
-    const assignment = await TruckAssignment.findOne({ driverId, date })
+    const range = dateRangeFor(date);
+    if (!range) {
+      return res.status(400).json({ success: false, message: "Invalid date" });
+    }
+
+    const assignment = await TruckAssignment.findOne({
+      driverId,
+      date: { $gte: range.start, $lt: range.end },
+    })
       .populate("truckId")
       .lean();
 
@@ -116,23 +173,33 @@ exports.updateAssignment = async (req, res) => {
   }
 
   try {
-    // Check for duplicate assignment (except current one)
-    const duplicate = await TruckAssignment.findOne({
-      _id: { $ne: assignmentId },
+    const normalizedDate = normalizeDateOnly(date);
+    if (!normalizedDate) {
+      return res.status(400).json({ success: false, message: "Invalid date" });
+    }
+
+    const conflict = await findAssignmentConflict({
       truckId,
       driverId,
-      date,
+      date: normalizedDate,
+      excludeId: assignmentId,
     });
-    if (duplicate) {
+    if (conflict?.type === "driver") {
       return res.status(409).json({
         success: false,
-        message: "This truck is already assigned to this driver for the given date",
+        message: "This driver already has a truck assignment on the selected date",
+      });
+    }
+    if (conflict?.type === "truck") {
+      return res.status(409).json({
+        success: false,
+        message: "This truck is already assigned to another driver on the selected date",
       });
     }
 
     const updated = await TruckAssignment.findByIdAndUpdate(
       assignmentId,
-      { truckId, driverId, date },
+      { truckId, driverId, date: normalizedDate },
       { new: true, runValidators: true }
     );
 

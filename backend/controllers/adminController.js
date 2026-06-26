@@ -6,6 +6,8 @@ const Job = require("../models/job");
 const Truck = require("../models/truck");
 const DailyWorkLog = require("../models/dailyWorkLog");
 const JobPod = require("../models/jobPod");
+const WorkDiary = require("../models/workDiary");
+const TruckAssignment = require("../models/dailyTruckAssignment");
 
 const exportToExcel = require("../utils/excelExport");
 const generateZip = require("../utils/zipGenerator");
@@ -66,6 +68,21 @@ exports.deleteDriver = async (req, res) => {
       return res.status(400).json({
         status: "fail",
         message: "You cannot delete your own admin account",
+      });
+    }
+
+    const [activeJob, assignment, workLog, pod, workDiary] = await Promise.all([
+      Job.exists({ assignedTo: driverId, status: { $in: ["pending", "in-progress"] } }),
+      TruckAssignment.exists({ driverId }),
+      DailyWorkLog.exists({ driverId }),
+      JobPod.exists({ driverId }),
+      WorkDiary.exists({ driverId }),
+    ]);
+
+    if (activeJob || assignment || workLog || pod || workDiary) {
+      return res.status(409).json({
+        status: "fail",
+        message: "Cannot delete driver because they are referenced by jobs, assignments, records, or documents",
       });
     }
 

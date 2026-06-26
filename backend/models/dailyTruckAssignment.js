@@ -26,4 +26,8 @@ dailyTruckAssignmentSchema.index(
   { unique: true }
 );
 
+// Prevent one driver or one truck from being double-booked on the same normalized date.
+dailyTruckAssignmentSchema.index({ driverId: 1, date: 1 }, { unique: true });
+dailyTruckAssignmentSchema.index({ truckId: 1, date: 1 }, { unique: true });
+
 module.exports = mongoose.model("DailyTruckAssignment", dailyTruckAssignmentSchema);

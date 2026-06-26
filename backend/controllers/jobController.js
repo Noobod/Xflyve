@@ -1,6 +1,38 @@
 const Job = require("../models/job");
 const Driver = require("../models/driver");
+const DailyWorkLog = require("../models/dailyWorkLog");
 const logger = require("../utils/logger");
+
+const normalizeDateOnly = (value) => {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+};
+
+const dateRangeFor = (value) => {
+  const start = normalizeDateOnly(value);
+  if (!start) return null;
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+};
+
+const findTruckJobConflict = async ({ assignedTruck, jobDate, excludeJobId }) => {
+  const range = dateRangeFor(jobDate);
+  if (!range) return { type: "invalid-date" };
+
+  return Job.findOne({
+    assignedTruck,
+    ...(excludeJobId ? { _id: { $ne: excludeJobId } } : {}),
+    jobDate: { $gte: range.start, $lt: range.end },
+  }).lean();
+};
 
 // @desc    Create a new job
 // @route   POST /api/jobs/create
@@ -32,14 +64,13 @@ exports.createJob = async (req, res) => {
       return res.status(400).json({ status: "fail", message: "Job date is required" });
     }
 
+    const normalizedJobDate = normalizeDateOnly(jobDate);
+    if (!normalizedJobDate) {
+      return res.status(400).json({ status: "fail", message: "Invalid job date" });
+    }
+
     // ✅ Prevent assigning the same truck twice on the same day
-    const existingJob = await Job.findOne({
-      assignedTruck,
-      jobDate: {
-        $gte: new Date(new Date(jobDate).setHours(0, 0, 0, 0)),
-        $lt: new Date(new Date(jobDate).setHours(23, 59, 59, 999)),
-      },
-    });
+    const existingJob = await findTruckJobConflict({ assignedTruck, jobDate: normalizedJobDate });
 
     if (existingJob) {
       return res.status(400).json({
@@ -55,7 +86,7 @@ exports.createJob = async (req, res) => {
       deliveryLocation: deliveryLocation.trim(),
       assignedTo,
       assignedTruck,
-      jobDate: new Date(jobDate),
+      jobDate: normalizedJobDate,
       jobType,
       status: "pending",
     });
@@ -217,13 +248,35 @@ exports.updateJob = async (req, res) => {
       }
     }
 
+    const nextAssignedTruck = assignedTruck !== undefined ? assignedTruck : job.assignedTruck;
+    const nextJobDate = jobDate !== undefined ? normalizeDateOnly(jobDate) : job.jobDate;
+
+    if (jobDate !== undefined && !nextJobDate) {
+      return res.status(400).json({ status: "fail", message: "Invalid job date" });
+    }
+
+    if (assignedTruck !== undefined || jobDate !== undefined) {
+      const existingJob = await findTruckJobConflict({
+        assignedTruck: nextAssignedTruck,
+        jobDate: nextJobDate,
+        excludeJobId: jobId,
+      });
+
+      if (existingJob) {
+        return res.status(400).json({
+          status: "fail",
+          message: "This truck is already assigned to another job on the selected date",
+        });
+      }
+    }
+
     job.title = title !== undefined ? title : job.title;
     job.description = description !== undefined ? description : job.description;
     job.pickupLocation = pickupLocation !== undefined ? pickupLocation : job.pickupLocation;
     job.deliveryLocation = deliveryLocation !== undefined ? deliveryLocation : job.deliveryLocation;
     job.assignedTo = assignedTo !== undefined ? assignedTo : job.assignedTo;
-    job.assignedTruck = assignedTruck !== undefined ? assignedTruck : job.assignedTruck;
-    job.jobDate = jobDate !== undefined ? new Date(jobDate) : job.jobDate;
+    job.assignedTruck = nextAssignedTruck;
+    job.jobDate = nextJobDate;
     job.jobType = jobType !== undefined ? jobType : job.jobType;
     job.status = status !== undefined ? status : job.status;
 
@@ -245,11 +298,28 @@ exports.deleteJob = async (req, res) => {
   try {
     const jobId = req.params.jobId;
 
-    const deletedJob = await Job.findByIdAndDelete(jobId);
+    const job = await Job.findById(jobId);
 
-    if (!deletedJob) {
+    if (!job) {
       return res.status(404).json({ status: "fail", message: "Job not found" });
     }
+
+    if (job.status === "in-progress") {
+      return res.status(409).json({
+        status: "fail",
+        message: "Cannot delete a job that is currently in progress",
+      });
+    }
+
+    const linkedWorkLog = await DailyWorkLog.exists({ jobIds: jobId });
+    if (linkedWorkLog) {
+      return res.status(409).json({
+        status: "fail",
+        message: "Cannot delete a job referenced by daily records",
+      });
+    }
+
+    await Job.deleteOne({ _id: jobId });
 
     res.status(200).json({ status: "success", message: "Job deleted successfully" });
   } catch (err) {
