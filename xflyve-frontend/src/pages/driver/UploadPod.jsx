@@ -1,39 +1,46 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-  Container,
-  Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  CircularProgress,
   Alert,
-  Button,
-  TextField,
-  IconButton,
   Box,
-  useMediaQuery,
-  Card,
-  CardContent,
-  CardActions,
+  Button,
+  Chip,
+  IconButton,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+  CircularProgress,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { Delete, Edit, Save, Cancel } from "@mui/icons-material";
-import { useTheme } from "@mui/material/styles";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import { useParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import {
-  uploadPod,
-  listPodsByDriver,
-  deletePod,
-  updatePodNotes,
-} from "../../api";
+import { uploadPod, listPodsByDriver, deletePod, updatePodNotes } from "../../api";
+
+const palette = {
+  ink: "#0b1220",
+  muted: "#697586",
+  line: "rgba(15, 23, 42, 0.075)",
+  panel: "rgba(255, 255, 255, 0.88)",
+  heroStart: "#050b18",
+  heroMid: "#0b2f3a",
+  heroEnd: "#0c5f5b",
+  teal: "#0e7c76",
+};
+
+const formatDateTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+  return date.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+};
 
 const DriverPOD = () => {
   const { user } = useAuth();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm")); // detects mobile screen
+  const { id: routeJobId } = useParams();
+  const driverId = user?._id || user?.id;
 
   const [pods, setPods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,264 +51,152 @@ const DriverPOD = () => {
   const [editId, setEditId] = useState(null);
   const [editNotes, setEditNotes] = useState("");
 
-  // Fetch PODs for the driver
-  const fetchPods = async () => {
+  const fetchPods = useCallback(async () => {
+    if (!driverId) return;
     setLoading(true);
     setError("");
     try {
-      const data = await listPodsByDriver(user._id);
+      const data = await listPodsByDriver(driverId);
       setPods(data);
     } catch (err) {
-      console.error(err);
       setError(err.response?.data?.message || "Failed to load PODs");
     } finally {
       setLoading(false);
     }
-  };
+  }, [driverId]);
 
   useEffect(() => {
-    if (user) fetchPods();
-  }, [user]);
+    fetchPods();
+  }, [fetchPods]);
 
-  // File selection
-  const handleFileChange = (e) => setFile(e.target.files[0] || null);
-
-  // Upload POD
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file) return setError("Please select a PDF file to upload");
-
+    if (!file) return setError("Please select a PDF file to upload.");
     setUploading(true);
     setError("");
 
     const formData = new FormData();
-    formData.append("podFile", file); 
-    formData.append("driverId", user._id);
+    formData.append("podFile", file);
+    formData.append("driverId", driverId);
     formData.append("notes", notes);
 
     try {
       const uploaded = await uploadPod(formData);
-      setPods((prev) => [...prev, uploaded]);
+      setPods((prev) => [uploaded, ...prev]);
       setFile(null);
       setNotes("");
     } catch (err) {
-      console.error(err.response || err);
       setError(err.response?.data?.message || "Upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  // Delete POD
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this POD?")) return;
+    if (!window.confirm("Delete this POD upload?")) return;
     try {
       await deletePod(id);
-      setPods((prev) => prev.filter((p) => p._id !== id));
+      setPods((prev) => prev.filter((pod) => pod._id !== id));
     } catch (err) {
-      console.error(err.response || err);
       setError(err.response?.data?.message || "Failed to delete POD");
     }
-  };
-
-  // Edit notes
-  const startEdit = (id, currentNotes) => {
-    setEditId(id);
-    setEditNotes(currentNotes || "");
-  };
-
-  const cancelEdit = () => {
-    setEditId(null);
-    setEditNotes("");
   };
 
   const saveEdit = async (id) => {
     try {
       const updated = await updatePodNotes(id, { notes: editNotes });
-      setPods((prev) =>
-        prev.map((p) => (p._id === id ? { ...p, notes: updated.notes } : p))
-      );
-      cancelEdit();
+      setPods((prev) => prev.map((pod) => (pod._id === id ? { ...pod, notes: updated.notes } : pod)));
+      setEditId(null);
+      setEditNotes("");
     } catch (err) {
-      console.error(err.response || err);
       setError(err.response?.data?.message || "Failed to update notes");
     }
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        My POD Uploads
-      </Typography>
+    <Box sx={{ minHeight: "100vh", pt: { xs: 3, sm: 4 }, pb: { xs: 4, sm: 6 }, overflowX: "hidden", background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)` }}>
+      <Box sx={{ width: "100%", maxWidth: 960, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
+        <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3, borderRadius: 5, color: "white", background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)` }}>
+          <Chip label="Proof of delivery" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
+          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>Upload POD</Typography>
+          <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>
+            Upload delivery proof for owner records and invoice preparation.
+          </Typography>
+        </Paper>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+        {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
+        {routeJobId && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 3 }}>
+            This upload was opened from a job, but PODs are currently stored against the driver until job-linked PODs are added.
+          </Alert>
+        )}
 
-      {/* Upload Form */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <form onSubmit={handleUpload}>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            style={{ marginBottom: 16 }}
-          />
-          <TextField
-            label="Notes (optional)"
-            fullWidth
-            multiline
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <Button variant="contained" type="submit" disabled={uploading}>
-            {uploading ? "Uploading..." : "Upload POD PDF"}
-          </Button>
-        </form>
-      </Paper>
+        <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 3, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+          <form onSubmit={handleUpload}>
+            <Stack spacing={2}>
+              <Box sx={{ p: 2, borderRadius: 4, border: "1px dashed", borderColor: alpha(palette.teal, 0.32), bgcolor: alpha(palette.teal, 0.055) }}>
+                <Stack spacing={1}>
+                  <Box sx={{ width: 48, height: 48, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.1) }}>
+                    <UploadFileIcon />
+                  </Box>
+                  <Typography fontWeight={950} sx={{ color: palette.ink }}>Select POD PDF</Typography>
+                  <Typography variant="body2" sx={{ color: palette.muted }}>Choose the proof of delivery document from your phone.</Typography>
+                  <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files[0] || null)} />
+                  {file && <Chip icon={<PictureAsPdfIcon />} label={file.name} sx={{ alignSelf: "flex-start" }} />}
+                </Stack>
+              </Box>
+              <TextField label="Notes (optional)" fullWidth multiline rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add delivery notes if needed" />
+              <Button variant="contained" size="large" type="submit" disabled={uploading} startIcon={<UploadFileIcon />} sx={{ minHeight: 56, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}>
+                {uploading ? "Uploading..." : "Upload POD"}
+              </Button>
+            </Stack>
+          </form>
+        </Paper>
 
-      {/* POD List */}
-      {loading ? (
-        <CircularProgress />
-      ) : pods.length === 0 ? (
-        <Typography>No POD uploads found.</Typography>
-      ) : isMobile ? (
-        // Mobile card view
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {pods.map((p) => (
-            <Card key={p._id} variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Uploaded At:
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {new Date(p.uploadDate || p.createdAt).toLocaleString()}
-                </Typography>
-
-                <Typography variant="subtitle2" color="textSecondary">
-                  Notes:
-                </Typography>
-                {editId === p._id ? (
-                  <TextField
-                    multiline
-                    rows={2}
-                    fullWidth
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    size="small"
-                    sx={{ mb: 1 }}
-                  />
-                ) : (
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    {p.notes || "-"}
-                  </Typography>
-                )}
-              </CardContent>
-              <CardActions>
-                {editId === p._id ? (
-                  <>
-                    <IconButton onClick={() => saveEdit(p._id)} size="small">
-                      <Save />
-                    </IconButton>
-                    <IconButton onClick={cancelEdit} color="error" size="small">
-                      <Cancel />
-                    </IconButton>
-                  </>
-                ) : (
-                  <>
-                    <IconButton onClick={() => startEdit(p._id, p.notes)} size="small">
-                      <Edit />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleDelete(p._id)}
-                      color="error"
-                      size="small"
-                    >
-                      <Delete />
-                    </IconButton>
-                  </>
-                )}
-              </CardActions>
-            </Card>
-          ))}
-        </Box>
-      ) : (
-        // Desktop table view
-        <Box sx={{ overflowX: "auto" }}>
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 450 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                    Uploaded At
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                    Notes
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: "bold" }}>
-                    Actions
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {pods.map((p) => (
-                  <TableRow key={p._id} hover>
-                    <TableCell align="center">
-                      {new Date(p.uploadDate || p.createdAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell align="center">
-                      {editId === p._id ? (
-                        <TextField
-                          multiline
-                          rows={2}
-                          value={editNotes}
-                          onChange={(e) => setEditNotes(e.target.value)}
-                          size="small"
-                        />
-                      ) : (
-                        p.notes || "-"
-                      )}
-                    </TableCell>
-                    <TableCell align="center">
-                      {editId === p._id ? (
-                        <>
-                          <IconButton onClick={() => saveEdit(p._id)} size="small">
-                            <Save />
-                          </IconButton>
-                          <IconButton onClick={cancelEdit} color="error" size="small">
-                            <Cancel />
-                          </IconButton>
-                        </>
-                      ) : (
-                        <>
-                          <IconButton
-                            onClick={() => startEdit(p._id, p.notes)}
-                            size="small"
-                          >
-                            <Edit />
-                          </IconButton>
-                          <IconButton
-                            onClick={() => handleDelete(p._id)}
-                            color="error"
-                            size="small"
-                          >
-                            <Delete />
-                          </IconButton>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-      )}
-    </Container>
+        <Typography variant="h5" fontWeight={950} sx={{ mb: 1.75, color: palette.ink, letterSpacing: "-0.045em" }}>Recent POD uploads</Typography>
+        {loading ? (
+          <Paper elevation={0} sx={{ p: 5, textAlign: "center", borderRadius: 5, border: "1px solid", borderColor: palette.line }}><CircularProgress /></Paper>
+        ) : pods.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+            <Typography fontWeight={900}>No POD uploads yet</Typography>
+            <Typography sx={{ mt: 0.5, color: palette.muted }}>Uploaded proof of delivery documents will appear here.</Typography>
+          </Paper>
+        ) : (
+          <Stack spacing={2}>
+            {pods.map((pod) => (
+              <Paper key={pod._id} elevation={0} sx={{ p: 2, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                  <Box sx={{ width: 46, height: 46, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.09), flexShrink: 0 }}>
+                    <Inventory2OutlinedIcon />
+                  </Box>
+                  <Box flex={1} minWidth={0}>
+                    <Typography fontWeight={950} sx={{ color: palette.ink }}>{formatDateTime(pod.uploadDate || pod.createdAt)}</Typography>
+                    {editId === pod._id ? (
+                      <TextField multiline rows={2} fullWidth value={editNotes} onChange={(e) => setEditNotes(e.target.value)} sx={{ mt: 1 }} />
+                    ) : (
+                      <Typography variant="body2" sx={{ mt: 0.5, color: palette.muted }}>{pod.notes || "No notes added."}</Typography>
+                    )}
+                  </Box>
+                  <Stack direction="row" spacing={0.5}>
+                    {editId === pod._id ? (
+                      <>
+                        <IconButton onClick={() => saveEdit(pod._id)}><Save /></IconButton>
+                        <IconButton color="error" onClick={() => setEditId(null)}><Cancel /></IconButton>
+                      </>
+                    ) : (
+                      <>
+                        <IconButton onClick={() => { setEditId(pod._id); setEditNotes(pod.notes || ""); }}><Edit /></IconButton>
+                        <IconButton color="error" onClick={() => handleDelete(pod._id)}><Delete /></IconButton>
+                      </>
+                    )}
+                  </Stack>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+        )}
+      </Box>
+    </Box>
   );
 };
 

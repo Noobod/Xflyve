@@ -1,39 +1,112 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Container,
-  Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  CircularProgress,
   Alert,
-  Button,
-  Select,
-  MenuItem,
   Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  Paper,
+  Stack,
+  Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { getJobsByDriver, updateJob } from "../../api";
 import { useAuth } from "../../contexts/AuthContext";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
+import LocalShippingIcon from "@mui/icons-material/LocalShipping";
+import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
+import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
+import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+
+const palette = {
+  ink: "#0b1220",
+  slate: "#253449",
+  muted: "#697586",
+  line: "rgba(15, 23, 42, 0.075)",
+  panel: "rgba(255, 255, 255, 0.88)",
+  heroStart: "#050b18",
+  heroMid: "#0b2f3a",
+  heroEnd: "#0c5f5b",
+  blue: "#2563eb",
+  teal: "#0e7c76",
+  emerald: "#07866f",
+  amber: "#b76e00",
+};
+
+const formatDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not scheduled";
+  return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+};
+
+const getStatusMeta = (status) => {
+  if (status === "completed") return { label: "Completed", color: palette.emerald };
+  if (status === "in-progress") return { label: "In progress", color: palette.blue };
+  return { label: "Pending", color: palette.amber };
+};
+
+const DetailItem = ({ icon, label, value }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      p: 1.5,
+      borderRadius: 3,
+      border: "1px solid",
+      borderColor: palette.line,
+      bgcolor: alpha("#fff", 0.72),
+      minWidth: 0,
+    }}
+  >
+    <Stack direction="row" spacing={1.25} alignItems="center">
+      <Box
+        sx={{
+          width: 36,
+          height: 36,
+          borderRadius: 2.5,
+          display: "grid",
+          placeItems: "center",
+          color: palette.teal,
+          bgcolor: alpha(palette.teal, 0.08),
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </Box>
+      <Box minWidth={0}>
+        <Typography variant="caption" sx={{ color: palette.muted, fontWeight: 750 }}>
+          {label}
+        </Typography>
+        <Typography variant="body2" fontWeight={850} noWrap sx={{ color: palette.ink }}>
+          {value || "—"}
+        </Typography>
+      </Box>
+    </Stack>
+  </Paper>
+);
 
 const DriverJobs = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const driverId = user?._id || user?.id;
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [processingId, setProcessingId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!user) return;
+    if (!driverId) return;
 
     const fetchJobs = async () => {
       setLoading(true);
+      setError("");
       try {
-        const res = await getJobsByDriver(user._id);
+        const res = await getJobsByDriver(driverId);
         setJobs(res.data.data || []);
       } catch (err) {
         setError(err.response?.data?.message || "Failed to fetch jobs.");
@@ -43,131 +116,172 @@ const DriverJobs = () => {
     };
 
     fetchJobs();
-  }, [user]);
+  }, [driverId]);
 
-  const handleStatusChange = async (jobId, newStatus) => {
+  const sortedJobs = useMemo(
+    () => [...jobs].sort((a, b) => new Date(a.jobDate) - new Date(b.jobDate)),
+    [jobs]
+  );
+
+  const handleStatusChange = async (job, newStatus) => {
     setError("");
+    setProcessingId(job._id);
     try {
-      await updateJob(jobId, { status: newStatus });
+      await updateJob(job._id, { status: newStatus });
       setJobs((prevJobs) =>
-        prevJobs.map((job) =>
-          job._id === jobId ? { ...job, status: newStatus } : job
-        )
+        prevJobs.map((item) => (item._id === job._id ? { ...item, status: newStatus } : item))
       );
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update status.");
+    } finally {
+      setProcessingId("");
     }
   };
 
+  const renderPrimaryAction = (job) => {
+    if (job.status === "completed") {
+      return (
+        <Button
+          fullWidth
+          size="large"
+          variant="contained"
+          startIcon={<UploadFileIcon />}
+          onClick={() => navigate(`/driver/pods/upload/${job._id}`)}
+          sx={{ minHeight: 54, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}
+        >
+          Upload POD
+        </Button>
+      );
+    }
+
+    const nextStatus = job.status === "in-progress" ? "completed" : "in-progress";
+    const label = job.status === "in-progress" ? "Complete Job" : "Start Job";
+    const icon = job.status === "in-progress" ? <CheckCircleOutlineIcon /> : <PlayArrowRoundedIcon />;
+
+    return (
+      <Button
+        fullWidth
+        size="large"
+        variant="contained"
+        startIcon={icon}
+        disabled={processingId === job._id}
+        onClick={() => handleStatusChange(job, nextStatus)}
+        sx={{ minHeight: 54, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}
+      >
+        {processingId === job._id ? "Updating..." : label}
+      </Button>
+    );
+  };
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        My Assigned Jobs
-      </Typography>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        pt: { xs: 3, sm: 4 },
+        pb: { xs: 4, sm: 6 },
+        overflowX: "hidden",
+        background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)`,
+      }}
+    >
+      <Box sx={{ width: "100%", maxWidth: 1040, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 2.5, sm: 3.5 },
+            mb: 3,
+            borderRadius: { xs: 4.5, sm: 5 },
+            color: "white",
+            background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)`,
+            border: "1px solid",
+            borderColor: alpha("#fff", 0.12),
+          }}
+        >
+          <Chip
+            label="Driver jobs"
+            size="small"
+            sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }}
+          />
+          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>
+            My assigned jobs
+          </Typography>
+          <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>
+            Start, complete, and submit records for your transport runs.
+          </Typography>
+        </Paper>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError("")} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+        {error && <Alert severity="error" sx={{ mb: 2.5, borderRadius: 3 }}>{error}</Alert>}
 
-      {loading ? (
-        <CircularProgress />
-      ) : jobs.length === 0 ? (
-        <Typography>No jobs assigned to you currently.</Typography>
-      ) : (
-        // Make table scrollable on small screens
-        <Box sx={{ overflowX: "auto" }}>
-          <TableContainer component={Paper} elevation={3}>
-            <Table sx={{ minWidth: 650 }}>
-              <TableHead>
-                <TableRow>
-                  {[
-                    "Title",
-                    "Truck",
-                    "Pickup Location",
-                    "Delivery Location",
-                    "Job Type",
-                    "Status",
-                    "POD",
-                    "Work Diary",
-                  ].map((header) => (
-                    <TableCell
-                      key={header}
-                      align="center"
-                      sx={{
-                        fontWeight: "bold",
-                        whiteSpace: "nowrap", // prevent breaking header text
-                      }}
-                    >
-                      {header}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
+        {loading ? (
+          <Paper elevation={0} sx={{ p: 5, textAlign: "center", borderRadius: 5, border: "1px solid", borderColor: palette.line }}>
+            <CircularProgress />
+            <Typography sx={{ mt: 2, color: palette.muted }}>Loading assigned jobs...</Typography>
+          </Paper>
+        ) : sortedJobs.length === 0 ? (
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+            <Typography variant="h6" fontWeight={950} sx={{ color: palette.ink }}>
+              No jobs assigned yet
+            </Typography>
+            <Typography sx={{ mt: 0.75, color: palette.muted }}>
+              You’re clear for now. Check back later or contact your dispatcher if you expected work.
+            </Typography>
+          </Paper>
+        ) : (
+          <Stack spacing={2}>
+            {sortedJobs.map((job) => {
+              const statusMeta = getStatusMeta(job.status);
+              return (
+                <Paper
+                  key={job._id}
+                  elevation={0}
+                  sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}
+                >
+                  <Stack spacing={2}>
+                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1}>
+                      <Box minWidth={0}>
+                        <Typography variant="h6" fontWeight={950} sx={{ color: palette.ink, letterSpacing: "-0.04em" }}>
+                          {job.title || "Assigned job"}
+                        </Typography>
+                        <Typography variant="body2" sx={{ mt: 0.5, color: palette.muted }}>
+                          {job.description || "Complete this run and submit the required records."}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={statusMeta.label}
+                        sx={{ alignSelf: "flex-start", color: statusMeta.color, bgcolor: alpha(statusMeta.color, 0.1), fontWeight: 900 }}
+                      />
+                    </Stack>
 
-              <TableBody>
-                {jobs.map((job) => (
-                  <TableRow key={job._id} hover>
-                    <TableCell align="center">{job.title}</TableCell>
-                    <TableCell align="center">
-                      {job.assignedTruck?.truckNumber || "-"}
-                    </TableCell>
-                    <TableCell align="center">{job.pickupLocation}</TableCell>
-                    <TableCell align="center">{job.deliveryLocation}</TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{ textTransform: "capitalize" }}
-                    >
-                      {job.jobType}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Select
-                        value={job.status}
-                        onChange={(e) =>
-                          handleStatusChange(job._id, e.target.value)
-                        }
-                        size="small"
-                      >
-                        <MenuItem value="pending">Pending</MenuItem>
-                        <MenuItem value="in-progress">In Progress</MenuItem>
-                        <MenuItem value="completed">Completed</MenuItem>
-                      </Select>
-                    </TableCell>
+                    <Divider sx={{ borderColor: palette.line }} />
 
-                    <TableCell align="center">
-                      <Button
-                        variant={job.podUploaded ? "contained" : "outlined"}
-                        color="primary"
-                        size="small"
-                        onClick={() =>
-                          navigate(`/driver/pods/upload/${job._id}`)
-                        }
-                      >
-                        {job.podUploaded ? "Edit POD" : "Upload POD"}
-                      </Button>
-                    </TableCell>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                      <DetailItem icon={<LocationOnOutlinedIcon />} label="Pickup" value={job.pickupLocation} />
+                      <DetailItem icon={<RouteOutlinedIcon />} label="Delivery" value={job.deliveryLocation} />
+                      <DetailItem icon={<LocalShippingIcon />} label="Truck" value={job.assignedTruck?.truckNumber} />
+                      <DetailItem icon={<AssignmentTurnedInIcon />} label="Date" value={formatDate(job.jobDate)} />
+                    </Box>
 
-                    <TableCell align="center">
-                      <Button
-                        variant={job.workDiaryUploaded ? "contained" : "outlined"}
-                        color="primary"
-                        size="small"
-                        onClick={() =>
-                          navigate(`/driver/work-diary/${job._id}`)
-                        }
-                      >
-                        {job.workDiaryUploaded ? "Edit Diary" : "Upload Diary"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-      )}
-    </Container>
+                    <Stack spacing={1.25}>
+                      {renderPrimaryAction(job)}
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
+                        <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => navigate(`/driver/pods/upload/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
+                          POD
+                        </Button>
+                        <Button variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => navigate(`/driver/work-diary/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
+                          Diary
+                        </Button>
+                        <Button variant="outlined" startIcon={<FactCheckIcon />} onClick={() => navigate("/driver/logs")} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
+                          Work Log
+                        </Button>
+                      </Box>
+                    </Stack>
+                  </Stack>
+                </Paper>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+    </Box>
   );
 };
 
