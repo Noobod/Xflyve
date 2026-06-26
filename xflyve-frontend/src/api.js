@@ -46,6 +46,7 @@ export const createJob = (jobData) => api.post("/jobs/create", jobData); // Admi
 export const updateJob = (jobId, jobData) => api.put(`/jobs/${jobId}`, jobData); // Admin: update job
 export const deleteJob = (jobId) => api.delete(`/jobs/${jobId}`); // Admin: delete job
 export const markJobComplete = (jobId) => api.put(`/jobs/complete/${jobId}`); // Driver: mark complete
+export const getJobsReadyForInvoicing = () => api.get("/jobs/admin/ready-for-invoicing");
 
 // Truck Assignments
 export const assignTruck = (assignmentData) =>
@@ -77,6 +78,9 @@ export const getWorkLogsByCurrentDriver = () => api.get("/worklogs/me");
 export const getAllWorkLogsAdmin = () => api.get("/worklogs/admin");
 export const getWorkLogsByDriverAdmin = (driverId) =>
   api.get(`/worklogs/admin/${driverId}`);
+export const getPendingWorkLogsAdmin = () => api.get("/worklogs/admin/pending");
+export const approveWorkLogAdmin = (logId) => api.put(`/worklogs/admin/${logId}/approve`);
+export const rejectWorkLogAdmin = (logId, payload) => api.put(`/worklogs/admin/${logId}/reject`, payload);
 
 // ===== WORK DIARY =====
 export const uploadWorkDiary = async (formData) => {
@@ -106,6 +110,21 @@ export const updateWorkDiaryNotes = async (workDiaryId, payload) => {
   // payload = { notes: "new notes text" }
   const res = await api.put(`/workDiaries/${workDiaryId}`, payload);
   return res.data.data; // return the updated work diary object
+};
+
+export const listPendingWorkDiaries = async () => {
+  const res = await api.get("/workdiaries/admin/pending");
+  return res.data.data || [];
+};
+
+export const approveWorkDiary = async (workDiaryId) => {
+  const res = await api.put(`/workdiaries/${workDiaryId}/approve`);
+  return res.data.data;
+};
+
+export const rejectWorkDiary = async (workDiaryId, payload) => {
+  const res = await api.put(`/workdiaries/${workDiaryId}/reject`, payload);
+  return res.data.data;
 };
 
 // ===== POD =====
@@ -139,6 +158,21 @@ export const updatePodNotes = async (podId, payload) => {
 // Delete POD
 export const deletePod = async (podId) => {
   const { data } = await api.delete(`/jobpods/${podId}`);
+  return data.data;
+};
+
+export const listPendingPods = async () => {
+  const { data } = await api.get("/jobpods/admin/pending");
+  return data.data || [];
+};
+
+export const approvePod = async (podId) => {
+  const { data } = await api.put(`/jobpods/${podId}/approve`);
+  return data.data;
+};
+
+export const rejectPod = async (podId, payload) => {
+  const { data } = await api.put(`/jobpods/${podId}/reject`, payload);
   return data.data;
 };
 

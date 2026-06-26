@@ -14,10 +14,12 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadIcon from "@mui/icons-material/Download";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
-import { getAllDrivers, listPodsByDriver, deletePod, getPod } from "../../api";
+import { getAllDrivers, listPodsByDriver, deletePod, getPod, listPendingPods, approvePod, rejectPod } from "../../api";
 
 const palette = {
   ink: "#0b1220",
@@ -34,9 +36,23 @@ const AdminPODs = () => {
   const [drivers, setDrivers] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState("");
   const [pods, setPods] = useState([]);
+  const [pendingPods, setPendingPods] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pendingLoading, setPendingLoading] = useState(true);
+  const [actionId, setActionId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const fetchPendingPods = async () => {
+    setPendingLoading(true);
+    try {
+      setPendingPods(await listPendingPods());
+    } catch (err) {
+      setError(err.response?.data?.message || "Server error loading pending POD approvals");
+    } finally {
+      setPendingLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchDrivers = async () => {
@@ -49,6 +65,7 @@ const AdminPODs = () => {
       }
     };
     fetchDrivers();
+    fetchPendingPods();
   }, []);
 
   useEffect(() => {
@@ -71,7 +88,52 @@ const AdminPODs = () => {
     fetchPods();
   }, [selectedDriver]);
 
-  const driverName = (id) => drivers.find((d) => d._id === id)?.name || "Driver";
+  const driverName = (driver) => {
+    if (driver?.name) return driver.name;
+    return drivers.find((d) => d._id === driver)?.name || "Driver";
+  };
+
+  const statusChip = (status = "pending") => {
+    const color = status === "approved" ? "#07866f" : status === "rejected" ? "#b42318" : "#b76e00";
+    return <Chip label={status} sx={{ color, bgcolor: alpha(color, 0.1), fontWeight: 900, textTransform: "capitalize" }} />;
+  };
+
+  const refreshPods = async () => {
+    await fetchPendingPods();
+    if (selectedDriver) setPods(await listPodsByDriver(selectedDriver));
+  };
+
+  const handleApprove = async (podId) => {
+    setActionId(podId);
+    setError("");
+    setSuccess("");
+    try {
+      await approvePod(podId);
+      setSuccess("POD approved.");
+      await refreshPods();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to approve POD");
+    } finally {
+      setActionId("");
+    }
+  };
+
+  const handleReject = async (podId) => {
+    const rejectionReason = window.prompt("Why is this POD being rejected?");
+    if (!rejectionReason) return;
+    setActionId(podId);
+    setError("");
+    setSuccess("");
+    try {
+      await rejectPod(podId, { rejectionReason });
+      setSuccess("POD rejected.");
+      await refreshPods();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to reject POD");
+    } finally {
+      setActionId("");
+    }
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this POD record?")) return;
@@ -113,6 +175,40 @@ const AdminPODs = () => {
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 3 }}>{success}</Alert>}
 
+        <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 2.5, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+          <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1}>
+              <Box>
+                <Typography variant="h5" fontWeight={950} sx={{ color: palette.ink, letterSpacing: "-0.045em" }}>Pending POD approvals</Typography>
+                <Typography variant="body2" sx={{ color: palette.muted }}>Approve delivery proof before invoice preparation.</Typography>
+              </Box>
+              <Chip label={`${pendingPods.length} pending`} sx={{ alignSelf: { xs: "flex-start", sm: "center" }, color: palette.teal, bgcolor: alpha(palette.teal, 0.1), fontWeight: 900 }} />
+            </Stack>
+            {pendingLoading ? (
+              <Box sx={{ py: 2, textAlign: "center" }}><CircularProgress size={28} /></Box>
+            ) : pendingPods.length === 0 ? (
+              <Typography sx={{ color: palette.muted }}>No PODs waiting for approval.</Typography>
+            ) : (
+              <Stack spacing={1.5}>
+                {pendingPods.map((pod) => (
+                  <Paper key={pod._id} elevation={0} sx={{ p: 2, borderRadius: 4, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5}>
+                      <Box>
+                        <Typography fontWeight={950} sx={{ color: palette.ink }}>{driverName(pod.driverId)} · {new Date(pod.uploadDate || Date.now()).toLocaleDateString()}</Typography>
+                        <Typography variant="body2" sx={{ color: palette.muted }}>{pod.jobId?.title ? `Job: ${pod.jobId.title}` : "No job linked yet"} · {pod.notes || "No notes"}</Typography>
+                      </Box>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                        <Button disabled={actionId === pod._id} variant="contained" startIcon={<CheckCircleOutlineIcon />} onClick={() => handleApprove(pod._id)} sx={{ borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Approve</Button>
+                        <Button disabled={actionId === pod._id} variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} onClick={() => handleReject(pod._id)} sx={{ borderRadius: 3, fontWeight: 900 }}>Reject</Button>
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+
         <Paper elevation={0} sx={{ p: 2, mb: 2.5, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
           <FormControl fullWidth>
             <InputLabel id="driver-select-label">Select Driver</InputLabel>
@@ -145,10 +241,13 @@ const AdminPODs = () => {
                     <Box>
                       <Typography fontWeight={950} sx={{ color: palette.ink }}>{new Date(pod.uploadDate || Date.now()).toLocaleDateString()}</Typography>
                       <Typography variant="body2" sx={{ color: palette.muted }}>Driver: {driverName(pod.driverId)}</Typography>
+                      <Box sx={{ mt: 1 }}>{statusChip(pod.status)}</Box>
                       <Typography variant="body2" sx={{ color: palette.muted, mt: 0.5 }}>{pod.notes || "No notes added."}</Typography>
                     </Box>
                   </Stack>
                   <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ minWidth: { sm: 220 } }}>
+                    {pod.status === "pending" && <Button fullWidth variant="contained" startIcon={<CheckCircleOutlineIcon />} onClick={() => handleApprove(pod._id)} disabled={actionId === pod._id} sx={{ borderRadius: 3, bgcolor: palette.teal, fontWeight: 900 }}>Approve</Button>}
+                    {pod.status === "pending" && <Button fullWidth variant="outlined" color="warning" startIcon={<CancelOutlinedIcon />} onClick={() => handleReject(pod._id)} disabled={actionId === pod._id} sx={{ borderRadius: 3, fontWeight: 900 }}>Reject</Button>}
                     <Button fullWidth variant="contained" startIcon={<DownloadIcon />} onClick={() => handleDownload(pod)} sx={{ borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Download</Button>
                     <Button fullWidth variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => handleDelete(pod._id)} sx={{ borderRadius: 3, fontWeight: 900 }}>Delete</Button>
                   </Stack>

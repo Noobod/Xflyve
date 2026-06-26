@@ -12,11 +12,22 @@ import {
 } from "@mui/material";
 import Autocomplete from "@mui/material/Autocomplete";
 import { alpha } from "@mui/material/styles";
+import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import NotesIcon from "@mui/icons-material/Notes";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import SpeedIcon from "@mui/icons-material/Speed";
 import TimerOutlinedIcon from "@mui/icons-material/TimerOutlined";
-import { getAllWorkLogsAdmin, getWorkLogsByDriverAdmin, getAllDrivers } from "../../api";
+import {
+  getAllWorkLogsAdmin,
+  getWorkLogsByDriverAdmin,
+  getAllDrivers,
+  getPendingWorkLogsAdmin,
+  approveWorkLogAdmin,
+  rejectWorkLogAdmin,
+  getJobsReadyForInvoicing,
+} from "../../api";
 
 const palette = {
   ink: "#0b1220",
@@ -53,8 +64,13 @@ const WorkLogs = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [drivers, setDrivers] = useState([]);
   const [selectedDriver, setSelectedDriver] = useState(null);
+  const [pendingLogs, setPendingLogs] = useState([]);
+  const [invoiceReadyJobs, setInvoiceReadyJobs] = useState([]);
+  const [reviewLoading, setReviewLoading] = useState(true);
+  const [actionId, setActionId] = useState("");
 
   useEffect(() => {
     const fetchDrivers = async () => {
@@ -87,8 +103,25 @@ const WorkLogs = () => {
     }
   };
 
+  const fetchReviewQueues = async () => {
+    setReviewLoading(true);
+    try {
+      const [pendingRes, invoiceRes] = await Promise.all([
+        getPendingWorkLogsAdmin(),
+        getJobsReadyForInvoicing(),
+      ]);
+      setPendingLogs(pendingRes.data.data || []);
+      setInvoiceReadyJobs(invoiceRes.data.data || []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Server error loading approval queues");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchRecords();
+    fetchReviewQueues();
   }, []);
 
   const weeklySummary = useMemo(() => {
@@ -110,6 +143,50 @@ const WorkLogs = () => {
     fetchRecords(newValue ? newValue._id : null);
   };
 
+  const statusChip = (status = "pending") => {
+    const color = status === "approved" ? "#07866f" : status === "rejected" ? "#b42318" : "#b76e00";
+    return <Chip label={status} sx={{ color, bgcolor: alpha(color, 0.1), fontWeight: 900, textTransform: "capitalize" }} />;
+  };
+
+  const refreshAfterAction = async () => {
+    await Promise.all([
+      fetchReviewQueues(),
+      fetchRecords(selectedDriver?._id || null),
+    ]);
+  };
+
+  const handleApprove = async (logId) => {
+    setActionId(logId);
+    setError("");
+    setSuccess("");
+    try {
+      await approveWorkLogAdmin(logId);
+      setSuccess("Daily Record approved.");
+      await refreshAfterAction();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to approve Daily Record");
+    } finally {
+      setActionId("");
+    }
+  };
+
+  const handleReject = async (logId) => {
+    const rejectionReason = window.prompt("Why is this Daily Record being rejected?");
+    if (!rejectionReason) return;
+    setActionId(logId);
+    setError("");
+    setSuccess("");
+    try {
+      await rejectWorkLogAdmin(logId, { rejectionReason });
+      setSuccess("Daily Record rejected.");
+      await refreshAfterAction();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to reject Daily Record");
+    } finally {
+      setActionId("");
+    }
+  };
+
   return (
     <Box sx={{ minHeight: "100vh", pt: { xs: 3, sm: 4 }, pb: 6, overflowX: "hidden", background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)` }}>
       <Box sx={{ width: "100%", maxWidth: 1180, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
@@ -124,6 +201,69 @@ const WorkLogs = () => {
           <StatPill icon={<TimerOutlinedIcon />} label="Weekly hours" value={weeklySummary.hours.toFixed(1)} />
           <StatPill icon={<SpeedIcon />} label="Weekly km" value={weeklySummary.km.toFixed(0)} />
           <StatPill icon={<FactCheckIcon />} label="Deliveries" value={weeklySummary.deliveries} />
+        </Box>
+
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2, mb: 2.5 }}>
+          <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1}>
+                <Box>
+                  <Typography variant="h5" fontWeight={950} sx={{ color: palette.ink, letterSpacing: "-0.045em" }}>Pending record approvals</Typography>
+                  <Typography variant="body2" sx={{ color: palette.muted }}>Approve driver-submitted work before payroll prep.</Typography>
+                </Box>
+                <Chip label={`${pendingLogs.length} pending`} sx={{ alignSelf: { xs: "flex-start", sm: "center" }, color: palette.teal, bgcolor: alpha(palette.teal, 0.1), fontWeight: 900 }} />
+              </Stack>
+              {reviewLoading ? (
+                <Box sx={{ py: 2, textAlign: "center" }}><CircularProgress size={28} /></Box>
+              ) : pendingLogs.length === 0 ? (
+                <Typography sx={{ color: palette.muted }}>No Daily Records waiting for approval.</Typography>
+              ) : (
+                <Stack spacing={1.5}>
+                  {pendingLogs.slice(0, 4).map((log) => (
+                    <Paper key={log._id} elevation={0} sx={{ p: 2, borderRadius: 4, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                      <Stack spacing={1.5}>
+                        <Box>
+                          <Typography fontWeight={950} sx={{ color: palette.ink }}>{log.driverId?.name || "Unknown driver"} · {formatDate(log.workDate || log.date)}</Typography>
+                          <Typography variant="body2" sx={{ color: palette.muted }}>{log.hours ?? 0} hrs · {log.kilometers ?? 0} km · {log.deliveriesDone ?? 0} deliveries</Typography>
+                        </Box>
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                          <Button disabled={actionId === log._id} variant="contained" startIcon={<CheckCircleOutlineIcon />} onClick={() => handleApprove(log._id)} sx={{ borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Approve</Button>
+                          <Button disabled={actionId === log._id} variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} onClick={() => handleReject(log._id)} sx={{ borderRadius: 3, fontWeight: 900 }}>Reject</Button>
+                        </Stack>
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </Paper>
+
+          <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1}>
+                <Box>
+                  <Typography variant="h5" fontWeight={950} sx={{ color: palette.ink, letterSpacing: "-0.045em" }}>Ready to invoice</Typography>
+                  <Typography variant="body2" sx={{ color: palette.muted }}>Completed jobs with approved POD and diary.</Typography>
+                </Box>
+                <Chip icon={<ReceiptLongIcon />} label={`${invoiceReadyJobs.length} ready`} sx={{ alignSelf: { xs: "flex-start", sm: "center" }, color: palette.teal, bgcolor: alpha(palette.teal, 0.1), fontWeight: 900 }} />
+              </Stack>
+              {reviewLoading ? (
+                <Box sx={{ py: 2, textAlign: "center" }}><CircularProgress size={28} /></Box>
+              ) : invoiceReadyJobs.length === 0 ? (
+                <Typography sx={{ color: palette.muted }}>No jobs are invoice-ready yet.</Typography>
+              ) : (
+                <Stack spacing={1.5}>
+                  {invoiceReadyJobs.slice(0, 4).map((job) => (
+                    <Paper key={job._id} elevation={0} sx={{ p: 2, borderRadius: 4, border: "1px solid", borderColor: palette.line, bgcolor: alpha("#fff", 0.74) }}>
+                      <Typography fontWeight={950} sx={{ color: palette.ink }}>{job.title || "Untitled job"}</Typography>
+                      <Typography variant="body2" sx={{ color: palette.muted }}>{job.pickupLocation || "Pickup"} → {job.deliveryLocation || "Delivery"}</Typography>
+                      <Typography variant="body2" sx={{ color: palette.muted }}>Driver: {job.assignedTo?.name || "—"} · Truck: {job.assignedTruck?.truckNumber || "—"}</Typography>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+            </Stack>
+          </Paper>
         </Box>
 
         <Paper elevation={0} sx={{ p: 2, mb: 2.5, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
@@ -145,6 +285,7 @@ const WorkLogs = () => {
         </Paper>
 
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 3 }}>{success}</Alert>}
 
         {loading ? (
           <Paper elevation={0} sx={{ p: 5, textAlign: "center", borderRadius: 5, border: "1px solid", borderColor: palette.line }}><CircularProgress /></Paper>
@@ -163,7 +304,7 @@ const WorkLogs = () => {
                       <Typography fontWeight={950} sx={{ color: palette.ink }}>{log.driverId?.name || "Unknown driver"}</Typography>
                       <Typography variant="body2" sx={{ color: palette.muted }}>{formatDate(log.date)}</Typography>
                     </Box>
-                    <Chip label="Submitted" sx={{ alignSelf: { xs: "flex-start", sm: "center" }, color: palette.teal, bgcolor: alpha(palette.teal, 0.1), fontWeight: 900 }} />
+                    {statusChip(log.status)}
                   </Stack>
                   <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1 }}>
                     <StatPill icon={<TimerOutlinedIcon />} label="Hours" value={log.hours ?? 0} />
@@ -176,6 +317,12 @@ const WorkLogs = () => {
                     </Typography>
                   )}
                   {log.notes && <Chip icon={<NotesIcon />} label={log.notes} sx={{ alignSelf: "flex-start", maxWidth: "100%" }} />}
+                  {log.status === "pending" && (
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <Button variant="contained" startIcon={<CheckCircleOutlineIcon />} onClick={() => handleApprove(log._id)} disabled={actionId === log._id} sx={{ borderRadius: 3, bgcolor: palette.ink, fontWeight: 900 }}>Approve</Button>
+                      <Button variant="outlined" color="error" startIcon={<CancelOutlinedIcon />} onClick={() => handleReject(log._id)} disabled={actionId === log._id} sx={{ borderRadius: 3, fontWeight: 900 }}>Reject</Button>
+                    </Stack>
+                  )}
                 </Stack>
               </Paper>
             ))}
