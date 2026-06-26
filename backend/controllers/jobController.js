@@ -1,6 +1,5 @@
 const Job = require("../models/job");
 const Driver = require("../models/driver");
-const DailyWorkLog = require("../models/dailyWorkLog");
 const logger = require("../utils/logger");
 
 const normalizeDateOnly = (value) => {
@@ -29,6 +28,7 @@ const findTruckJobConflict = async ({ assignedTruck, jobDate, excludeJobId }) =>
 
   return Job.findOne({
     assignedTruck,
+    recordStatus: { $ne: "archived" },
     ...(excludeJobId ? { _id: { $ne: excludeJobId } } : {}),
     jobDate: { $gte: range.start, $lt: range.end },
   }).lean();
@@ -44,6 +44,11 @@ exports.createJob = async (req, res) => {
       description,
       pickupLocation,
       deliveryLocation,
+      customerName,
+      customerReference,
+      jobRate,
+      invoiceStatus,
+      recordStatus,
       assignedTo,
       assignedTruck,
       jobDate,
@@ -84,6 +89,11 @@ exports.createJob = async (req, res) => {
       description: description?.trim(),
       pickupLocation: pickupLocation.trim(),
       deliveryLocation: deliveryLocation.trim(),
+      customerName: customerName?.trim(),
+      customerReference: customerReference?.trim(),
+      jobRate,
+      invoiceStatus,
+      recordStatus,
       assignedTo,
       assignedTruck,
       jobDate: normalizedJobDate,
@@ -104,13 +114,34 @@ exports.createJob = async (req, res) => {
 // @access  Admin
 exports.getAllJobs = async (req, res) => {
   try {
-    const jobs = await Job.find()
+    const jobs = await Job.find({ recordStatus: { $ne: "archived" } })
       .populate("assignedTo", "name email driverType")
       .populate("assignedTruck", "truckNumber")
       .lean();
     res.status(200).json({ status: "success", results: jobs.length, data: jobs });
   } catch (err) {
     logger.error("Get Jobs Error: %o", err);
+    res.status(500).json({ status: "error", message: "Server error" });
+  }
+};
+
+exports.getJobsReadyForInvoicing = async (req, res) => {
+  try {
+    const jobs = await Job.findReadyForInvoicing();
+    const populatedJobs = await Job.populate(jobs, [
+      { path: "assignedTo", select: "name email driverType" },
+      { path: "assignedTruck", select: "truckNumber" },
+      { path: "podIds" },
+      { path: "diaryIds" },
+    ]);
+
+    res.status(200).json({
+      status: "success",
+      results: populatedJobs.length,
+      data: populatedJobs,
+    });
+  } catch (err) {
+    logger.error("Get Jobs Ready For Invoicing Error: %o", err);
     res.status(500).json({ status: "error", message: "Server error" });
   }
 };
@@ -174,7 +205,7 @@ exports.markJobComplete = async (req, res) => {
 // @access  Driver
 exports.getMyJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ assignedTo: req.user.id })
+    const jobs = await Job.find({ assignedTo: req.user.id, recordStatus: { $ne: "archived" } })
       .populate("assignedTruck", "truckNumber") // ✅ Added populate here
       .lean();
 
@@ -191,7 +222,7 @@ exports.getMyJobs = async (req, res) => {
 exports.getAssignedJobs = async (req, res) => {
   try {
     const driverId = req.params.driverId;
-    const jobs = await Job.find({ assignedTo: driverId })
+    const jobs = await Job.find({ assignedTo: driverId, recordStatus: { $ne: "archived" } })
       .populate("assignedTruck", "truckNumber") // ✅ Added populate here
       .lean();
 
@@ -212,6 +243,11 @@ exports.updateJob = async (req, res) => {
       description,
       pickupLocation,
       deliveryLocation,
+      customerName,
+      customerReference,
+      jobRate,
+      invoiceStatus,
+      recordStatus,
       assignedTo,
       assignedTruck,
       jobDate,
@@ -274,6 +310,11 @@ exports.updateJob = async (req, res) => {
     job.description = description !== undefined ? description : job.description;
     job.pickupLocation = pickupLocation !== undefined ? pickupLocation : job.pickupLocation;
     job.deliveryLocation = deliveryLocation !== undefined ? deliveryLocation : job.deliveryLocation;
+    job.customerName = customerName !== undefined ? customerName : job.customerName;
+    job.customerReference = customerReference !== undefined ? customerReference : job.customerReference;
+    job.jobRate = jobRate !== undefined ? jobRate : job.jobRate;
+    job.invoiceStatus = invoiceStatus !== undefined ? invoiceStatus : job.invoiceStatus;
+    job.recordStatus = recordStatus !== undefined ? recordStatus : job.recordStatus;
     job.assignedTo = assignedTo !== undefined ? assignedTo : job.assignedTo;
     job.assignedTruck = nextAssignedTruck;
     job.jobDate = nextJobDate;
@@ -311,17 +352,10 @@ exports.deleteJob = async (req, res) => {
       });
     }
 
-    const linkedWorkLog = await DailyWorkLog.exists({ jobIds: jobId });
-    if (linkedWorkLog) {
-      return res.status(409).json({
-        status: "fail",
-        message: "Cannot delete a job referenced by daily records",
-      });
-    }
+    job.recordStatus = "archived";
+    await job.save();
 
-    await Job.deleteOne({ _id: jobId });
-
-    res.status(200).json({ status: "success", message: "Job deleted successfully" });
+    res.status(200).json({ status: "success", message: "Job archived", data: job });
   } catch (err) {
     logger.error("Delete Job Error: %o", err);
     res.status(500).json({ status: "error", message: "Server error" });

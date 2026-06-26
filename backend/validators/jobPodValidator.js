@@ -21,3 +21,8 @@ exports.updatePODNotesValidator = [
   param("podId").isMongoId().withMessage("Valid POD ID is required"),
   body("notes").optional().isString().withMessage("Notes must be a string"),
 ];
+
+exports.rejectPODValidator = [
+  param("podId").isMongoId().withMessage("Valid POD ID is required"),
+  body("rejectionReason").trim().notEmpty().withMessage("Rejection reason is required"),
+];

@@ -13,6 +13,17 @@ exports.signupValidator = [
     .trim()
     .isIn(["local", "interstate"])
     .withMessage("driverType must be 'local' or 'interstate'"),
+  body("phone").optional().trim().isString().withMessage("Phone must be a string"),
+  body("active").optional().isBoolean().withMessage("Active must be true or false"),
+  body("recordStatus").optional().isIn(["active", "inactive", "archived"]).withMessage("Invalid record status"),
+  body("payType")
+    .optional()
+    .isIn(["hourly", "per_km", "per_delivery", "salary", "contractor"])
+    .withMessage("Invalid payType"),
+  body("hourlyRate").optional().isFloat({ min: 0 }).withMessage("Hourly rate must be non-negative"),
+  body("kmRate").optional().isFloat({ min: 0 }).withMessage("KM rate must be non-negative"),
+  body("deliveryRate").optional().isFloat({ min: 0 }).withMessage("Delivery rate must be non-negative"),
+  body("abn").optional().trim().isString().withMessage("ABN must be a string"),
 ];
 
 // Login input validation rules

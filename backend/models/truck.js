@@ -17,6 +17,11 @@ const truckSchema = new mongoose.Schema({
     enum: ["available", "on route", "maintenance"], 
     default: "available" 
   },
+  recordStatus: {
+    type: String,
+    enum: ["active", "inactive", "archived"],
+    default: "active",
+  },
   assignedDriver: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Driver" 

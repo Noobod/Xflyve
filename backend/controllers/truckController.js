@@ -11,7 +11,7 @@ const logger = require("../utils/logger");
  */
 exports.getAllTrucks = async (req, res) => {
   try {
-    const trucks = await Truck.find()
+    const trucks = await Truck.find({ recordStatus: { $ne: "archived" } })
       .populate("assignedDriver", "name email")
       .lean();
 
@@ -33,13 +33,14 @@ exports.getAllTrucks = async (req, res) => {
  */
 exports.addTruck = async (req, res) => {
   try {
-    const { truckNumber, model, capacity, status, assignedDriver, lastMaintenanceDate } = req.body;
+    const { truckNumber, model, capacity, status, recordStatus, assignedDriver, lastMaintenanceDate } = req.body;
 
     const newTruck = new Truck({
       truckNumber,
       model,
       capacity,
       status,
+      recordStatus,
       assignedDriver,
       lastMaintenanceDate,
     });
@@ -101,24 +102,27 @@ exports.deleteTruck = async (req, res) => {
 
   try {
     const [activeJob, assignment] = await Promise.all([
-      Job.exists({ assignedTruck: truckId, status: { $in: ["pending", "in-progress"] } }),
+      Job.exists({ assignedTruck: truckId, status: { $in: ["pending", "in-progress"] }, recordStatus: { $ne: "archived" } }),
       TruckAssignment.exists({ truckId }),
     ]);
 
     if (activeJob || assignment) {
       return res.status(409).json({
         success: false,
-        message: "Cannot delete truck because it is referenced by active jobs or assignments",
+        message: "Cannot archive truck because it is referenced by active jobs or assignments",
       });
     }
 
-    const deleted = await Truck.findByIdAndDelete(truckId);
+    const truck = await Truck.findById(truckId);
 
-    if (!deleted) {
+    if (!truck) {
       return res.status(404).json({ success: false, message: "Truck not found" });
     }
 
-    return res.status(200).json({ success: true, message: "Truck deleted" });
+    truck.recordStatus = "archived";
+    await truck.save();
+
+    return res.status(200).json({ success: true, message: "Truck archived", data: truck });
   } catch (err) {
     logger.error("Delete truck error: %o", err);
     return res.status(500).json({ success: false, message: "Server error" });

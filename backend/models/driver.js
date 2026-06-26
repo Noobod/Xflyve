@@ -32,6 +32,40 @@ const driverSchema = new mongoose.Schema(
       enum: ["local", "interstate"],
       required: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    active: {
+      type: Boolean,
+      default: true,
+      required: true,
+    },
+    recordStatus: {
+      type: String,
+      enum: ["active", "inactive", "archived"],
+      default: "active",
+    },
+    payType: {
+      type: String,
+      enum: ["hourly", "per_km", "per_delivery", "salary", "contractor"],
+    },
+    hourlyRate: {
+      type: Number,
+      min: 0,
+    },
+    kmRate: {
+      type: Number,
+      min: 0,
+    },
+    deliveryRate: {
+      type: Number,
+      min: 0,
+    },
+    abn: {
+      type: String,
+      trim: true,
+    },
   },
   {
     timestamps: true, // Adds createdAt and updatedAt fields

@@ -218,3 +218,73 @@ exports.deleteWorkDiary = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+exports.approveWorkDiary = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid work diary ID" });
+    }
+
+    const workDiary = await WorkDiary.findById(id);
+    if (!workDiary) return res.status(404).json({ success: false, message: "Work diary not found" });
+
+    workDiary.status = "approved";
+    workDiary.approvedBy = req.user.id;
+    workDiary.approvedAt = new Date();
+    workDiary.rejectedBy = null;
+    workDiary.rejectedAt = null;
+    workDiary.rejectionReason = undefined;
+
+    await workDiary.save();
+
+    return res.status(200).json({ success: true, message: "Work diary approved", data: workDiary });
+  } catch (err) {
+    logger.error("Approve work diary error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.rejectWorkDiary = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid work diary ID" });
+    }
+
+    const workDiary = await WorkDiary.findById(id);
+    if (!workDiary) return res.status(404).json({ success: false, message: "Work diary not found" });
+
+    workDiary.status = "rejected";
+    workDiary.rejectedBy = req.user.id;
+    workDiary.rejectedAt = new Date();
+    workDiary.rejectionReason = rejectionReason;
+    workDiary.approvedBy = null;
+    workDiary.approvedAt = null;
+
+    await workDiary.save();
+
+    return res.status(200).json({ success: true, message: "Work diary rejected", data: workDiary });
+  } catch (err) {
+    logger.error("Reject work diary error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.listPendingWorkDiaryApprovals = async (req, res) => {
+  try {
+    const diaries = await WorkDiary.find({ status: "pending" })
+      .populate("driverId", "name email driverType role")
+      .populate("jobId", "title pickupLocation deliveryLocation jobDate status")
+      .populate("truckId", "truckNumber")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, data: diaries });
+  } catch (err) {
+    logger.error("List pending work diary approvals error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};

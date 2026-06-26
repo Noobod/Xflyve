@@ -15,9 +15,29 @@ const {
   podIdValidator,
   podDriverIdParamValidator,
   updatePODNotesValidator,
+  rejectPODValidator,
 } = require("../validators/jobPodValidator");
 
 router.use(authMiddleware);
+
+// Admin approval helpers
+router.get("/admin/pending", requireAdmin, jobPodController.listPendingPODApprovals);
+
+router.put(
+  "/:podId/approve",
+  requireAdmin,
+  ...podIdValidator,
+  validateRequest,
+  jobPodController.approvePOD
+);
+
+router.put(
+  "/:podId/reject",
+  requireAdmin,
+  ...rejectPODValidator,
+  validateRequest,
+  jobPodController.rejectPOD
+);
 
 // Driver routes
 router.post(

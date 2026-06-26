@@ -6,8 +6,6 @@ const Job = require("../models/job");
 const Truck = require("../models/truck");
 const DailyWorkLog = require("../models/dailyWorkLog");
 const JobPod = require("../models/jobPod");
-const WorkDiary = require("../models/workDiary");
-const TruckAssignment = require("../models/dailyTruckAssignment");
 
 const exportToExcel = require("../utils/excelExport");
 const generateZip = require("../utils/zipGenerator");
@@ -18,7 +16,7 @@ const ADMIN_ROLE = "admin"; // Use constants for roles
 // GET /api/admin/drivers
 exports.getAllDrivers = async (req, res) => {
   try {
-    const drivers = await Driver.find().select("-password");
+    const drivers = await Driver.find({ recordStatus: { $ne: "archived" } }).select("-password");
     return res.status(200).json({
       status: "success",
       count: drivers.length,
@@ -71,27 +69,25 @@ exports.deleteDriver = async (req, res) => {
       });
     }
 
-    const [activeJob, assignment, workLog, pod, workDiary] = await Promise.all([
-      Job.exists({ assignedTo: driverId, status: { $in: ["pending", "in-progress"] } }),
-      TruckAssignment.exists({ driverId }),
-      DailyWorkLog.exists({ driverId }),
-      JobPod.exists({ driverId }),
-      WorkDiary.exists({ driverId }),
-    ]);
+    const activeJob = await Job.exists({ assignedTo: driverId, status: { $in: ["pending", "in-progress"] }, recordStatus: { $ne: "archived" } });
 
-    if (activeJob || assignment || workLog || pod || workDiary) {
+    if (activeJob) {
       return res.status(409).json({
         status: "fail",
-        message: "Cannot delete driver because they are referenced by jobs, assignments, records, or documents",
+        message: "Cannot archive driver while they have active jobs",
       });
     }
 
-    const deleted = await Driver.findByIdAndDelete(driverId);
-    if (!deleted) {
+    const driver = await Driver.findById(driverId);
+    if (!driver) {
       return res.status(404).json({ status: "fail", message: "Driver not found" });
     }
 
-    return res.status(200).json({ status: "success", message: "Driver deleted" });
+    driver.recordStatus = "archived";
+    driver.active = false;
+    await driver.save();
+
+    return res.status(200).json({ status: "success", message: "Driver archived", data: driver });
   } catch (err) {
     logger.error("Failed to delete driver %s: %o", req.params.driverId, err);
     return res.status(500).json({ status: "error", message: "Server error deleting driver" });
@@ -152,7 +148,20 @@ exports.downloadAllPods = async (req, res) => {
 
 exports.createDriver = async (req, res) => {
   try {
-    const { name, email, password, driverType } = req.body;
+    const {
+      name,
+      email,
+      password,
+      driverType,
+      phone,
+      active,
+      recordStatus,
+      payType,
+      hourlyRate,
+      kmRate,
+      deliveryRate,
+      abn,
+    } = req.body;
 
     // Check if email already exists
     const existingDriver = await Driver.findOne({ email });
@@ -165,6 +174,14 @@ exports.createDriver = async (req, res) => {
       email,
       password,
       driverType,
+      phone,
+      active,
+      recordStatus,
+      payType,
+      hourlyRate,
+      kmRate,
+      deliveryRate,
+      abn,
       role: "driver", // force role to driver
     });
 

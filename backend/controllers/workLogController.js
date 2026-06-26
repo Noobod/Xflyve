@@ -265,6 +265,61 @@ exports.deleteWorkLog = async (req, res) => {
   }
 };
 
+exports.approveWorkLog = async (req, res) => {
+  const { logId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(logId)) {
+    return res.status(400).json({ success: false, message: "Invalid logId" });
+  }
+
+  try {
+    const log = await DailyWorkLog.findById(logId);
+    if (!log) return res.status(404).json({ success: false, message: "Work log not found" });
+
+    log.status = "approved";
+    log.approvedBy = req.user.id;
+    log.approvedAt = new Date();
+    log.rejectedBy = null;
+    log.rejectedAt = null;
+    log.rejectionReason = undefined;
+
+    await log.save();
+
+    return res.status(200).json({ success: true, message: "Daily record approved", data: log });
+  } catch (err) {
+    logger.error("Approve WorkLog error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.rejectWorkLog = async (req, res) => {
+  const { logId } = req.params;
+  const { rejectionReason } = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(logId)) {
+    return res.status(400).json({ success: false, message: "Invalid logId" });
+  }
+
+  try {
+    const log = await DailyWorkLog.findById(logId);
+    if (!log) return res.status(404).json({ success: false, message: "Work log not found" });
+
+    log.status = "rejected";
+    log.rejectedBy = req.user.id;
+    log.rejectedAt = new Date();
+    log.rejectionReason = rejectionReason;
+    log.approvedBy = null;
+    log.approvedAt = null;
+
+    await log.save();
+
+    return res.status(200).json({ success: true, message: "Daily record rejected", data: log });
+  } catch (err) {
+    logger.error("Reject WorkLog error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 // ------------- NEW: Admin Get All Work Logs or by Driver -------------
 /**
  * @desc Get all daily work logs or filter by driverId (Admin only)
@@ -292,6 +347,20 @@ exports.getAllLogsForAdmin = async (req, res) => {
     return res.status(200).json({ success: true, data: logs });
   } catch (err) {
     logger.error("Admin get all logs error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.getPendingLogsForAdmin = async (req, res) => {
+  try {
+    const logs = await DailyWorkLog.find({ status: "pending" })
+      .populate("driverId", "name email")
+      .populate("jobIds", "title pickupLocation deliveryLocation jobDate status")
+      .sort({ workDate: -1, date: -1 });
+
+    return res.status(200).json({ success: true, data: logs });
+  } catch (err) {
+    logger.error("Admin get pending logs error: %o", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };

@@ -21,6 +21,28 @@ const jobSchema = new mongoose.Schema(
       trim: true,
       required: true,
     },
+    customerName: {
+      type: String,
+      trim: true,
+    },
+    customerReference: {
+      type: String,
+      trim: true,
+    },
+    jobRate: {
+      type: Number,
+      min: 0,
+    },
+    invoiceStatus: {
+      type: String,
+      enum: ["pending", "ready", "invoiced", "paid"],
+      default: "pending",
+    },
+    recordStatus: {
+      type: String,
+      enum: ["active", "inactive", "archived"],
+      default: "active",
+    },
     assignedTo: { 
       type: mongoose.Schema.Types.ObjectId, 
       ref: "Driver",
@@ -81,6 +103,63 @@ jobSchema.virtual("assignedDriver").get(function () {
 jobSchema.virtual("assignedDriver").set(function (value) {
   this.assignedTo = value;
 });
+
+jobSchema.methods.hasApprovedPod = async function () {
+  const JobPod = mongoose.model("JobPod");
+  const linkedPodIds = this.podIds || [];
+
+  const approvedPod = await JobPod.exists({
+    status: "approved",
+    $or: [
+      { jobId: this._id },
+      ...(linkedPodIds.length ? [{ _id: { $in: linkedPodIds } }] : []),
+    ],
+  });
+
+  return Boolean(approvedPod);
+};
+
+jobSchema.methods.hasApprovedDiary = async function () {
+  const WorkDiary = mongoose.model("WorkDiary");
+  const linkedDiaryIds = this.diaryIds || [];
+
+  const approvedDiary = await WorkDiary.exists({
+    status: "approved",
+    $or: [
+      { jobId: this._id },
+      ...(linkedDiaryIds.length ? [{ _id: { $in: linkedDiaryIds } }] : []),
+    ],
+  });
+
+  return Boolean(approvedDiary);
+};
+
+jobSchema.methods.isInvoiceReady = async function () {
+  if (this.status !== "completed") return false;
+  if (this.recordStatus === "archived") return false;
+  if (!["pending", "ready"].includes(this.invoiceStatus || "pending")) return false;
+
+  const [hasPod, hasDiary] = await Promise.all([
+    this.hasApprovedPod(),
+    this.hasApprovedDiary(),
+  ]);
+
+  return hasPod && hasDiary;
+};
+
+jobSchema.statics.findReadyForInvoicing = async function () {
+  const jobs = await this.find({
+    status: "completed",
+    recordStatus: { $ne: "archived" },
+    invoiceStatus: { $in: ["pending", "ready"] },
+  });
+
+  const readiness = await Promise.all(
+    jobs.map(async (job) => ((await job.isInvoiceReady()) ? job : null))
+  );
+
+  return readiness.filter(Boolean);
+};
 
 jobSchema.pre("save", function (next) {
   if (this.isModified("status")) {

@@ -4,13 +4,15 @@ const router = express.Router();
 const adminController = require("../controllers/adminController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const { requireAdmin } = require("../middlewares/roleMiddleware");
+const validateRequest = require("../middlewares/validateRequest");
+const { driverCreationValidator } = require("../validators/authValidator");
 const Driver = require("../models/driver");
 
 /* ==========================================================
    🔐 PROTECTED ADMIN ROUTES (Requires Token + Admin Role)
    ========================================================== */
 router.get("/drivers", authMiddleware, requireAdmin, adminController.getAllDrivers);
-router.post("/drivers", authMiddleware, requireAdmin, adminController.createDriver);
+router.post("/drivers", authMiddleware, requireAdmin, driverCreationValidator, validateRequest, adminController.createDriver);
 router.delete("/drivers/:driverId", authMiddleware, requireAdmin, adminController.deleteDriver);
 router.get("/export-drivers", authMiddleware, requireAdmin, adminController.exportDriversExcel);
 router.get("/stats", authMiddleware, requireAdmin, adminController.getSystemStats);
@@ -22,7 +24,7 @@ router.get("/download-all-pods", authMiddleware, requireAdmin, adminController.d
 router.get("/show-all-drivers", authMiddleware, requireAdmin, async (req, res) => {
   try {
     // Limit to 500 if you seeded 500 users, adjust if needed
-    const drivers = await Driver.find().select("-password").limit(500);
+    const drivers = await Driver.find({ recordStatus: { $ne: "archived" } }).select("-password").limit(500);
 
     return res.json({
       success: true,

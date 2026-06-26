@@ -4,8 +4,9 @@ const router = express.Router();
 const authMiddleware = require("../middlewares/authMiddleware");
 const { requireDriver, requireAdmin } = require("../middlewares/roleMiddleware");
 const workLogController = require("../controllers/workLogController");
-const { validateWorkLog } = require("../validators/workLogValidator");
+const { validateWorkLog, rejectWorkLogValidator } = require("../validators/workLogValidator");
 const validateMongoId = require("../validators/validateMongoId");
+const validateRequest = require("../middlewares/validateRequest");
 
 router.use(authMiddleware);
 
@@ -14,6 +15,27 @@ router.get(
   "/admin",
   requireAdmin,
   workLogController.getAllLogsForAdmin
+);
+
+router.get(
+  "/admin/pending",
+  requireAdmin,
+  workLogController.getPendingLogsForAdmin
+);
+
+router.put(
+  "/admin/:logId/approve",
+  requireAdmin,
+  validateMongoId("logId"),
+  workLogController.approveWorkLog
+);
+
+router.put(
+  "/admin/:logId/reject",
+  requireAdmin,
+  rejectWorkLogValidator,
+  validateRequest,
+  workLogController.rejectWorkLog
 );
 
 router.get(

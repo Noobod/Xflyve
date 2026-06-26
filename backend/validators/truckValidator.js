@@ -18,6 +18,10 @@ exports.truckCreateValidator = [
     .optional()
     .isIn(["available", "on route", "maintenance"])
     .withMessage("Invalid status"),
+  body("recordStatus")
+    .optional()
+    .isIn(["active", "inactive", "archived"])
+    .withMessage("Invalid record status"),
   body("assignedDriver")
     .optional()
     .isMongoId()
@@ -44,6 +48,10 @@ exports.truckUpdateValidator = [
     .optional()
     .isIn(["available", "on route", "maintenance"])
     .withMessage("Invalid status"),
+  body("recordStatus")
+    .optional()
+    .isIn(["active", "inactive", "archived"])
+    .withMessage("Invalid record status"),
   body("assignedDriver")
     .optional()
     .isMongoId()

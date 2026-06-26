@@ -193,6 +193,75 @@ exports.deletePOD = async (req, res) => {
   }
 };
 
+exports.approvePOD = async (req, res) => {
+  try {
+    const { podId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(podId)) {
+      return res.status(400).json({ success: false, message: "Invalid POD ID" });
+    }
+
+    const pod = await JobPod.findById(podId);
+    if (!pod) return res.status(404).json({ success: false, message: "POD not found" });
+
+    pod.status = "approved";
+    pod.approvedBy = req.user.id;
+    pod.approvedAt = new Date();
+    pod.rejectedBy = null;
+    pod.rejectedAt = null;
+    pod.rejectionReason = undefined;
+
+    await pod.save();
+
+    return res.status(200).json({ success: true, message: "POD approved", data: pod });
+  } catch (err) {
+    logger.error("Approve POD error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.rejectPOD = async (req, res) => {
+  try {
+    const { podId } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(podId)) {
+      return res.status(400).json({ success: false, message: "Invalid POD ID" });
+    }
+
+    const pod = await JobPod.findById(podId);
+    if (!pod) return res.status(404).json({ success: false, message: "POD not found" });
+
+    pod.status = "rejected";
+    pod.rejectedBy = req.user.id;
+    pod.rejectedAt = new Date();
+    pod.rejectionReason = rejectionReason;
+    pod.approvedBy = null;
+    pod.approvedAt = null;
+
+    await pod.save();
+
+    return res.status(200).json({ success: true, message: "POD rejected", data: pod });
+  } catch (err) {
+    logger.error("Reject POD error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.listPendingPODApprovals = async (req, res) => {
+  try {
+    const pods = await JobPod.find({ status: "pending" })
+      .populate("driverId", "name email driverType role")
+      .populate("jobId", "title pickupLocation deliveryLocation jobDate status")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, data: pods });
+  } catch (err) {
+    logger.error("List pending POD approvals error: %o", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 /**
  * Admin: list all PODs
  */
