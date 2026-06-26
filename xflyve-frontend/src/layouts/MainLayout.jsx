@@ -7,7 +7,7 @@ const MainLayout = () => {
   return (
     <>
       <Navbar />
-      <Box sx={{ p: 3 }}>
+      <Box component="main" sx={{ minWidth: 0, overflowX: "hidden" }}>
         <Outlet />
       </Box>
     </>
