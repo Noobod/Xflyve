@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -18,15 +18,12 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   getJobsByDriver,
-  getWorkLogsByCurrentDriver,
   listPodsByDriver,
   listWorkDiariesByDriver,
   updateJob,
 } from "../../api";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-import FactCheckIcon from "@mui/icons-material/FactCheck";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
@@ -63,6 +60,18 @@ const toLocalDateKey = (value = new Date()) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString("en-CA");
+};
+
+const normalizeId = (value) => {
+  if (!value) return "";
+  if (typeof value === "object") return String(value._id || value.id || "");
+  return String(value);
+};
+
+const referencesJob = (record, jobId) => {
+  const linkedJobId = normalizeId(record?.jobId);
+  const currentJobId = normalizeId(jobId);
+  return Boolean(linkedJobId && currentJobId && linkedJobId === currentJobId);
 };
 
 const formatDate = (value) => {
@@ -287,12 +296,22 @@ const DriverHome = () => {
   const driverId = user?._id || user?.id;
 
   const [jobs, setJobs] = useState([]);
-  const [workLogs, setWorkLogs] = useState([]);
   const [pods, setPods] = useState([]);
   const [workDiaries, setWorkDiaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const refreshPods = useCallback(async () => {
+    if (!driverId) return;
+
+    try {
+      const driverPods = await listPodsByDriver(driverId);
+      setPods(toArray(driverPods));
+    } catch {
+      setError("POD status could not be refreshed. Showing the last available result.");
+    }
+  }, [driverId]);
 
   useEffect(() => {
     if (!driverId) {
@@ -306,15 +325,13 @@ const DriverHome = () => {
 
       const results = await Promise.allSettled([
         getJobsByDriver(driverId),
-        getWorkLogsByCurrentDriver(),
         listPodsByDriver(driverId),
         listWorkDiariesByDriver(driverId),
       ]);
 
       setJobs(results[0].status === "fulfilled" ? toArray(results[0].value) : []);
-      setWorkLogs(results[1].status === "fulfilled" ? toArray(results[1].value) : []);
-      setPods(results[2].status === "fulfilled" ? toArray(results[2].value) : []);
-      setWorkDiaries(results[3].status === "fulfilled" ? toArray(results[3].value) : []);
+      setPods(results[1].status === "fulfilled" ? toArray(results[1].value) : []);
+      setWorkDiaries(results[2].status === "fulfilled" ? toArray(results[2].value) : []);
 
       if (results.some((result) => result.status === "rejected")) {
         setError("Some driver records could not be loaded. Showing what is available.");
@@ -325,6 +342,28 @@ const DriverHome = () => {
 
     fetchDriverDashboard();
   }, [driverId]);
+
+  useEffect(() => {
+    if (!driverId) return undefined;
+
+    const handlePageReturn = () => {
+      refreshPods();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshPods();
+    };
+
+    window.addEventListener("focus", handlePageReturn);
+    window.addEventListener("pageshow", handlePageReturn);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handlePageReturn);
+      window.removeEventListener("pageshow", handlePageReturn);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [driverId, refreshPods]);
 
   const todayKey = toLocalDateKey();
 
@@ -337,26 +376,26 @@ const DriverHome = () => {
       todaysJobs[0] ||
       null;
 
-    const hasWorkLogToday = workLogs.some((log) => toLocalDateKey(log.date) === todayKey);
-
-    // Current backend stores PODs and work diaries against the driver, not a specific job.
-    const hasPodToday = pods.some((pod) => toLocalDateKey(pod.uploadDate || pod.createdAt) === todayKey);
-    const hasDiaryToday = workDiaries.some(
-      (diary) => toLocalDateKey(diary.uploadDate || diary.createdAt) === todayKey
+    const activeTodayJobId = activeTodayJob?._id || activeTodayJob?.id;
+    const hasPodForCurrentJob = pods.some((pod) => referencesJob(pod, activeTodayJobId));
+    const hasDiaryForCurrentJob = workDiaries.some((diary) =>
+      referencesJob(diary, activeTodayJob?._id)
     );
 
     return {
       todaysJobs,
       activeTodayJob,
-      hasWorkLogToday,
-      hasPodToday,
-      hasDiaryToday,
+      hasPodForCurrentJob,
+      hasDiaryForCurrentJob,
       hasAnyJobs: jobs.length > 0,
     };
-  }, [jobs, pods, todayKey, workDiaries, workLogs]);
+  }, [jobs, pods, todayKey, workDiaries]);
 
   const currentJob = dashboard.activeTodayJob;
   const statusMeta = getStatusMeta(currentJob?.status);
+  const isInterstateJob = currentJob?.jobType === "interstate";
+  const isCompletedWithPod =
+    currentJob?.status === "completed" && dashboard.hasPodForCurrentJob;
 
   const handlePrimaryAction = async () => {
     if (!currentJob) {
@@ -365,6 +404,7 @@ const DriverHome = () => {
     }
 
     if (currentJob.status === "completed") {
+      if (dashboard.hasPodForCurrentJob) return;
       navigate(`/driver/pods/upload/${currentJob._id}`);
       return;
     }
@@ -390,20 +430,21 @@ const DriverHome = () => {
 
   const primaryActionLabel = currentJob
     ? currentJob.status === "completed"
-      ? "Upload POD"
+      ? dashboard.hasPodForCurrentJob
+        ? "Completed"
+        : "Upload POD"
       : currentJob.status === "in-progress"
         ? "Complete Job"
         : "Start Job"
     : "View All Jobs";
 
   const primaryActionIcon = currentJob?.status === "completed" ? (
-    <UploadFileIcon />
+    dashboard.hasPodForCurrentJob ? <CheckCircleOutlineIcon /> : <UploadFileIcon />
   ) : currentJob?.status === "in-progress" ? (
     <CheckCircleOutlineIcon />
   ) : (
     <PlayArrowRoundedIcon />
   );
-
   const quickActions = [
     {
       label: "View All Jobs",
@@ -411,24 +452,6 @@ const DriverHome = () => {
       icon: <WorkIcon />,
       path: "/driver/jobs",
       featured: true,
-    },
-    {
-      label: "Submit Work Log",
-      description: "Hours, km and notes",
-      icon: <FactCheckIcon />,
-      path: "/driver/logs",
-    },
-    {
-      label: "Upload POD",
-      description: "Proof of delivery",
-      icon: <UploadFileIcon />,
-      path: currentJob?._id ? `/driver/pods/upload/${currentJob._id}` : "/driver/pods/upload",
-    },
-    {
-      label: "Upload Work Diary",
-      description: "Daily records",
-      icon: <DescriptionOutlinedIcon />,
-      path: currentJob?._id ? `/driver/work-diary/${currentJob._id}` : "/driver/work-diary",
     },
   ];
 
@@ -493,21 +516,6 @@ const DriverHome = () => {
                   height: 30,
                 }}
               />
-              {user?.driverType && (
-                <Chip
-                  label={`${user.driverType} driver`}
-                  size="small"
-                  sx={{
-                    textTransform: "capitalize",
-                    color: alpha("#fff", 0.86),
-                    bgcolor: alpha("#fff", 0.08),
-                    border: "1px solid",
-                    borderColor: alpha("#fff", 0.12),
-                    fontWeight: 800,
-                    height: 30,
-                  }}
-                />
-              )}
             </Stack>
 
             <Box>
@@ -534,34 +542,10 @@ const DriverHome = () => {
                   lineHeight: 1.62,
                 }}
               >
-                Your work for today, truck details, and delivery records in one simple mobile view.
+                Your work for today is below.
               </Typography>
             </Box>
 
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={primaryActionIcon}
-              onClick={handlePrimaryAction}
-              disabled={actionLoading || loading}
-              sx={{
-                minHeight: { xs: 58, sm: 56 },
-                width: { xs: "100%", sm: "fit-content" },
-                borderRadius: 3.5,
-                bgcolor: "white",
-                color: palette.ink,
-                fontWeight: 950,
-                px: { xs: 3, sm: 3.5 },
-                letterSpacing: "-0.02em",
-                boxShadow: `0 16px 36px ${alpha("#000", 0.14)}`,
-                "&:hover": {
-                  bgcolor: alpha("#fff", 0.92),
-                  boxShadow: `0 18px 42px ${alpha("#000", 0.18)}`,
-                },
-              }}
-            >
-              {actionLoading ? "Updating..." : primaryActionLabel}
-            </Button>
           </Stack>
         </Paper>
 
@@ -681,7 +665,7 @@ const DriverHome = () => {
                       size="large"
                       startIcon={primaryActionIcon}
                       onClick={handlePrimaryAction}
-                      disabled={actionLoading}
+                      disabled={actionLoading || isCompletedWithPod}
                       fullWidth
                       sx={{
                         minHeight: 56,
@@ -694,6 +678,18 @@ const DriverHome = () => {
                     >
                       {actionLoading ? "Updating..." : primaryActionLabel}
                     </Button>
+                    {isCompletedWithPod && (
+                      <Button
+                        variant="outlined"
+                        size="large"
+                        startIcon={<UploadFileIcon />}
+                        onClick={() => navigate(`/driver/pods/upload/${currentJob._id}`)}
+                        fullWidth
+                        sx={{ minHeight: 52, borderRadius: 3.25, fontWeight: 900 }}
+                      >
+                        Edit / Replace POD
+                      </Button>
+                    )}
                   </Stack>
                 </Paper>
               ) : (
@@ -750,7 +746,11 @@ const DriverHome = () => {
 
             <DashboardSection
               title="Today’s Checklist"
-              subtitle="A simple record checklist for today. POD and diary are driver-level until job-linked documents are added."
+              subtitle={
+                isInterstateJob
+                  ? "Interstate jobs require delivery proof and a work diary."
+                  : "Local jobs require completion and delivery proof."
+              }
             >
               <Box
                 sx={{
@@ -760,49 +760,46 @@ const DriverHome = () => {
                 }}
               >
                 <ChecklistItem
-                  label="Job assigned"
+                  label="Job Assigned"
                   complete={Boolean(currentJob)}
                   helper={currentJob ? "Today’s job is ready." : "No job for today."}
                 />
                 <ChecklistItem
-                  label="Job completed"
+                  label="Job Completed"
                   complete={currentJob?.status === "completed"}
                   helper={currentJob?.status === "completed" ? "Marked complete." : "Complete when delivered."}
                 />
                 <ChecklistItem
-                  label="Work log submitted"
-                  complete={dashboard.hasWorkLogToday}
-                  helper={dashboard.hasWorkLogToday ? "Today’s log exists." : "Submit hours and kilometres."}
-                />
-                <ChecklistItem
-                  label="POD uploaded"
-                  complete={dashboard.hasPodToday}
+                  label="POD Uploaded"
+                  complete={dashboard.hasPodForCurrentJob}
                   helper={
-                    dashboard.hasPodToday
-                      ? "POD uploaded today."
-                      : "Placeholder: PODs are not job-linked yet."
+                    dashboard.hasPodForCurrentJob
+                      ? "Delivery proof is linked to this job."
+                      : "Upload delivery proof for this job."
                   }
                 />
-                <ChecklistItem
-                  label="Work diary uploaded"
-                  complete={dashboard.hasDiaryToday}
-                  helper={
-                    dashboard.hasDiaryToday
-                      ? "Diary uploaded today."
-                      : "Placeholder: diaries are not job-linked yet."
-                  }
-                />
+                {isInterstateJob ? (
+                  <ChecklistItem
+                    label="Work Diary Pages Uploaded"
+                    complete={dashboard.hasDiaryForCurrentJob}
+                    helper={
+                      dashboard.hasDiaryForCurrentJob
+                        ? "Work diary is linked to this job."
+                        : "Upload the interstate work diary."
+                    }
+                  />
+                ) : null}
               </Box>
             </DashboardSection>
 
             <DashboardSection
               title="Quick Actions"
-              subtitle="Large one-hand actions for the records drivers submit most often."
+              subtitle="Open your assigned jobs and continue from the relevant job card."
             >
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                  gridTemplateColumns: "minmax(0, 1fr)",
                   gap: 1.5,
                 }}
               >

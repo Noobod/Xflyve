@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
-import { getJobsByDriver, updateJob } from "../../api";
+import { getJobsByDriver, listPodsByDriver, updateJob } from "../../api";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
@@ -49,6 +49,11 @@ const getStatusMeta = (status) => {
   if (status === "completed") return { label: "Completed", color: palette.emerald };
   if (status === "in-progress") return { label: "In progress", color: palette.blue };
   return { label: "Pending", color: palette.amber };
+};
+
+const referencesJob = (record, jobId) => {
+  const linkedJobId = record?.jobId?._id || record?.jobId;
+  return Boolean(jobId && linkedJobId && String(linkedJobId) === String(jobId));
 };
 
 const DetailItem = ({ icon, label, value }) => (
@@ -95,6 +100,7 @@ const DriverJobs = () => {
   const navigate = useNavigate();
   const driverId = user?._id || user?.id;
   const [jobs, setJobs] = useState([]);
+  const [pods, setPods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState("");
   const [error, setError] = useState("");
@@ -105,14 +111,21 @@ const DriverJobs = () => {
     const fetchJobs = async () => {
       setLoading(true);
       setError("");
-      try {
-        const res = await getJobsByDriver(driverId);
-        setJobs(res.data.data || []);
-      } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch jobs.");
-      } finally {
-        setLoading(false);
+      const [jobsResult, podsResult] = await Promise.allSettled([
+          getJobsByDriver(driverId),
+          listPodsByDriver(driverId),
+      ]);
+
+      setJobs(jobsResult.status === "fulfilled" ? jobsResult.value.data.data || [] : []);
+      setPods(podsResult.status === "fulfilled" ? podsResult.value || [] : []);
+
+      if (jobsResult.status === "rejected") {
+        setError(jobsResult.reason?.response?.data?.message || "Failed to fetch jobs.");
+      } else if (podsResult.status === "rejected") {
+        setError("Jobs loaded, but POD status could not be checked.");
       }
+
+      setLoading(false);
     };
 
     fetchJobs();
@@ -139,7 +152,36 @@ const DriverJobs = () => {
   };
 
   const renderPrimaryAction = (job) => {
+    const hasPod = pods.some((pod) => referencesJob(pod, job._id));
+
     if (job.status === "completed") {
+      if (hasPod) {
+        return (
+          <Stack spacing={1}>
+            <Button
+              fullWidth
+              size="large"
+              variant="contained"
+              startIcon={<CheckCircleOutlineIcon />}
+              disabled
+              sx={{ minHeight: 54, borderRadius: 3, fontWeight: 950 }}
+            >
+              Completed ✅
+            </Button>
+            <Button
+              fullWidth
+              size="large"
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+              onClick={() => navigate(`/driver/pods/upload/${job._id}`)}
+              sx={{ minHeight: 50, borderRadius: 3, fontWeight: 900 }}
+            >
+              Edit / Replace POD
+            </Button>
+          </Stack>
+        );
+      }
+
       return (
         <Button
           fullWidth
@@ -229,6 +271,8 @@ const DriverJobs = () => {
           <Stack spacing={2}>
             {sortedJobs.map((job) => {
               const statusMeta = getStatusMeta(job.status);
+              const hasPod = pods.some((pod) => referencesJob(pod, job._id));
+              const isInterstateJob = job.jobType === "interstate";
               return (
                 <Paper
                   key={job._id}
@@ -262,16 +306,21 @@ const DriverJobs = () => {
 
                     <Stack spacing={1.25}>
                       {renderPrimaryAction(job)}
-                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
-                        <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => navigate(`/driver/pods/upload/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
-                          POD
-                        </Button>
-                        <Button variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => navigate(`/driver/work-diary/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
-                          Diary
-                        </Button>
-                        <Button variant="outlined" startIcon={<FactCheckIcon />} onClick={() => navigate("/driver/logs")} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
-                          Work Log
-                        </Button>
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1 }}>
+                        {!(job.status === "completed" && hasPod) && (
+                          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => navigate(`/driver/pods/upload/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
+                            {hasPod ? "Edit / Replace POD" : "POD"}
+                          </Button>
+                        )}
+                        {isInterstateJob ? (
+                          <Button variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => navigate(`/driver/work-diary/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
+                            Work Diary
+                          </Button>
+                        ) : (
+                          <Button variant="outlined" startIcon={<FactCheckIcon />} onClick={() => navigate("/driver/logs")} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
+                            Today’s Work
+                          </Button>
+                        )}
                       </Box>
                     </Stack>
                   </Stack>

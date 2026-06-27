@@ -79,6 +79,7 @@ const DriverPOD = () => {
     formData.append("podFile", file);
     formData.append("driverId", driverId);
     formData.append("notes", notes);
+    if (routeJobId) formData.append("jobId", routeJobId);
 
     try {
       const uploaded = await uploadPod(formData);
@@ -127,7 +128,7 @@ const DriverPOD = () => {
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
         {routeJobId && (
           <Alert severity="info" sx={{ mb: 2, borderRadius: 3 }}>
-            This upload was opened from a job, but PODs are currently stored against the driver until job-linked PODs are added.
+            This POD will be linked to the selected job.
           </Alert>
         )}
 

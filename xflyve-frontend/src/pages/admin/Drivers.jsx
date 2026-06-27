@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -19,7 +18,6 @@ import { alpha } from "@mui/material/styles";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import RouteIcon from "@mui/icons-material/Route";
 import { getAllDrivers, createDriver, deleteDriver, getPublicDrivers } from "../../api";
 
 const palette = {
@@ -33,7 +31,7 @@ const palette = {
   teal: "#0e7c76",
 };
 
-const emptyDriver = { name: "", email: "", password: "", driverType: "local" };
+const emptyDriver = { name: "", email: "", password: "" };
 
 const Drivers = () => {
   const [drivers, setDrivers] = useState([]);
@@ -129,10 +127,6 @@ const Drivers = () => {
               <TextField label="Name" name="name" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} required fullWidth />
               <TextField label="Email" name="email" type="email" value={formData.email} onChange={(e) => setFormData((p) => ({ ...p, email: e.target.value }))} required fullWidth />
               <TextField label="Temporary Password" name="password" type="password" value={formData.password} onChange={(e) => setFormData((p) => ({ ...p, password: e.target.value }))} required fullWidth />
-              <TextField select label="Driver Type" name="driverType" value={formData.driverType} onChange={(e) => setFormData((p) => ({ ...p, driverType: e.target.value }))} required fullWidth>
-                <MenuItem value="local">Local</MenuItem>
-                <MenuItem value="interstate">Interstate</MenuItem>
-              </TextField>
               <Button type="submit" variant="contained" size="large" fullWidth sx={{ minHeight: 56, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}>
                 Create Driver
               </Button>
@@ -170,7 +164,6 @@ const Drivers = () => {
                         </Box>
                       </Stack>
                       <Stack direction="row" spacing={1} flexWrap="wrap">
-                        <Chip icon={<RouteIcon />} label={driver.driverType || "driver"} sx={{ fontWeight: 850, textTransform: "capitalize" }} />
                         <Chip label={driver.role || "driver"} sx={{ fontWeight: 850 }} />
                       </Stack>
                       <Button variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => setDeleteDriverId(driver._id)} disabled={!driver._id} sx={{ minHeight: 48, borderRadius: 3, fontWeight: 900 }}>

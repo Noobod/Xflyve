@@ -19,7 +19,7 @@ exports.signup = async (req, res) => {
     // Trim inputs
     name = name.trim();
     email = email.trim().toLowerCase();
-    driverType = driverType.trim();
+    driverType = driverType?.trim();
 
     // Prevent duplicate emails
     const existing = await Driver.findOne({ email });

@@ -10,6 +10,7 @@ exports.signupValidator = [
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters"),
   body("driverType")
+    .optional()
     .trim()
     .isIn(["local", "interstate"])
     .withMessage("driverType must be 'local' or 'interstate'"),
@@ -41,6 +42,7 @@ exports.driverCreationValidator = [
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters"),
   body("driverType")
+    .optional()
     .trim()
     .isIn(["local", "interstate"])
     .withMessage("driverType must be 'local' or 'interstate'"),

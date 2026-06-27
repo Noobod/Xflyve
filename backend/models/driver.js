@@ -30,7 +30,6 @@ const driverSchema = new mongoose.Schema(
     driverType: {
       type: String,
       enum: ["local", "interstate"],
-      required: true,
     },
     phone: {
       type: String,
