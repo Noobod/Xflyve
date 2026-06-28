@@ -45,15 +45,44 @@ const formatDate = (value) => {
   return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 };
 
+const formatDateTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 const getStatusMeta = (status) => {
   if (status === "completed") return { label: "Completed", color: palette.emerald };
   if (status === "in-progress") return { label: "In progress", color: palette.blue };
   return { label: "Pending", color: palette.amber };
 };
 
+const normalizeId = (value) => {
+  if (!value) return "";
+  if (typeof value === "object") return String(value._id || value.id || "");
+  return String(value);
+};
+
 const referencesJob = (record, jobId) => {
-  const linkedJobId = record?.jobId?._id || record?.jobId;
-  return Boolean(jobId && linkedJobId && String(linkedJobId) === String(jobId));
+  const linkedJobId = normalizeId(record?.jobId);
+  const currentJobId = normalizeId(jobId);
+  return Boolean(linkedJobId && currentJobId && linkedJobId === currentJobId);
+};
+
+const getLinkedPod = (pods, jobId) => {
+  return [...pods]
+    .filter((pod) => referencesJob(pod, jobId))
+    .sort(
+      (a, b) =>
+        new Date(b.uploadDate || b.createdAt || 0) -
+        new Date(a.uploadDate || a.createdAt || 0)
+    )[0] || null;
 };
 
 const DetailItem = ({ icon, label, value }) => (
@@ -131,18 +160,58 @@ const DriverJobs = () => {
     fetchJobs();
   }, [driverId]);
 
-  const sortedJobs = useMemo(
-    () => [...jobs].sort((a, b) => new Date(a.jobDate) - new Date(b.jobDate)),
-    [jobs]
-  );
+  const visibleJobs = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    return jobs
+      .filter((job) => {
+        const jobDate = new Date(job.jobDate);
+
+        if (Number.isNaN(jobDate.getTime())) {
+          return job.status !== "completed";
+        }
+
+        return jobDate >= thirtyDaysAgo || job.status !== "completed";
+      })
+      .sort((a, b) => {
+        const aCompleted = a.status === "completed";
+        const bCompleted = b.status === "completed";
+
+        if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+
+        if (!aCompleted) {
+          const aJobDate = new Date(a.jobDate).getTime();
+          const bJobDate = new Date(b.jobDate).getTime();
+          const aTime = Number.isNaN(aJobDate) ? Number.POSITIVE_INFINITY : aJobDate;
+          const bTime = Number.isNaN(bJobDate) ? Number.POSITIVE_INFINITY : bJobDate;
+
+          return aTime - bTime;
+        }
+
+        const getCompletedSortTime = (job) => {
+          const completedTime = new Date(job.completedAt).getTime();
+          if (!Number.isNaN(completedTime)) return completedTime;
+
+          const jobTime = new Date(job.jobDate).getTime();
+          return Number.isNaN(jobTime) ? Number.NEGATIVE_INFINITY : jobTime;
+        };
+
+        return getCompletedSortTime(b) - getCompletedSortTime(a);
+      });
+  }, [jobs]);
 
   const handleStatusChange = async (job, newStatus) => {
     setError("");
     setProcessingId(job._id);
     try {
-      await updateJob(job._id, { status: newStatus });
+      const response = await updateJob(job._id, { status: newStatus });
+      const updatedJob = response.data.data;
       setJobs((prevJobs) =>
-        prevJobs.map((item) => (item._id === job._id ? { ...item, status: newStatus } : item))
+        prevJobs.map((item) => (item._id === job._id ? { ...item, ...updatedJob } : item))
       );
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update status.");
@@ -151,8 +220,8 @@ const DriverJobs = () => {
     }
   };
 
-  const renderPrimaryAction = (job) => {
-    const hasPod = pods.some((pod) => referencesJob(pod, job._id));
+  const renderPrimaryAction = (job, linkedPod) => {
+    const hasPod = Boolean(linkedPod);
 
     if (job.status === "completed") {
       if (hasPod) {
@@ -166,7 +235,7 @@ const DriverJobs = () => {
               disabled
               sx={{ minHeight: 54, borderRadius: 3, fontWeight: 950 }}
             >
-              Completed ✅
+              POD Uploaded ✅
             </Button>
             <Button
               fullWidth
@@ -247,7 +316,7 @@ const DriverJobs = () => {
             My assigned jobs
           </Typography>
           <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>
-            Start, complete, and submit records for your transport runs.
+            Upcoming work, active jobs, and completed history from the last 30 days.
           </Typography>
         </Paper>
 
@@ -258,20 +327,20 @@ const DriverJobs = () => {
             <CircularProgress />
             <Typography sx={{ mt: 2, color: palette.muted }}>Loading assigned jobs...</Typography>
           </Paper>
-        ) : sortedJobs.length === 0 ? (
+        ) : visibleJobs.length === 0 ? (
           <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
             <Typography variant="h6" fontWeight={950} sx={{ color: palette.ink }}>
-              No jobs assigned yet
+              No recent or upcoming jobs
             </Typography>
             <Typography sx={{ mt: 0.75, color: palette.muted }}>
-              You’re clear for now. Check back later or contact your dispatcher if you expected work.
+              You’re clear for now. Older completed work is hidden from this view.
             </Typography>
           </Paper>
         ) : (
           <Stack spacing={2}>
-            {sortedJobs.map((job) => {
+            {visibleJobs.map((job) => {
               const statusMeta = getStatusMeta(job.status);
-              const hasPod = pods.some((pod) => referencesJob(pod, job._id));
+              const linkedPod = getLinkedPod(pods, job._id || job.id);
               const isInterstateJob = job.jobType === "interstate";
               return (
                 <Paper
@@ -301,24 +370,37 @@ const DriverJobs = () => {
                       <DetailItem icon={<LocationOnOutlinedIcon />} label="Pickup" value={job.pickupLocation} />
                       <DetailItem icon={<RouteOutlinedIcon />} label="Delivery" value={job.deliveryLocation} />
                       <DetailItem icon={<LocalShippingIcon />} label="Truck" value={job.assignedTruck?.truckNumber} />
-                      <DetailItem icon={<AssignmentTurnedInIcon />} label="Date" value={formatDate(job.jobDate)} />
+                      <DetailItem icon={<AssignmentTurnedInIcon />} label="Job Type" value={job.jobType} />
+                    </Box>
+
+                    <Box>
+                      <Typography variant="overline" sx={{ color: palette.muted, fontWeight: 900, letterSpacing: "0.08em" }}>
+                        Operational timeline
+                      </Typography>
+                      <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                        <DetailItem icon={<AssignmentTurnedInIcon />} label="Job Date" value={formatDate(job.jobDate)} />
+                        {job.startedAt && (
+                          <DetailItem icon={<PlayArrowRoundedIcon />} label="Started At" value={formatDateTime(job.startedAt)} />
+                        )}
+                        {job.completedAt && (
+                          <DetailItem icon={<CheckCircleOutlineIcon />} label="Completed At" value={formatDateTime(job.completedAt)} />
+                        )}
+                        {linkedPod && (
+                          <DetailItem icon={<UploadFileIcon />} label="POD Uploaded At" value={formatDateTime(linkedPod.uploadDate || linkedPod.createdAt)} />
+                        )}
+                      </Box>
                     </Box>
 
                     <Stack spacing={1.25}>
-                      {renderPrimaryAction(job)}
-                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, gap: 1 }}>
-                        {!(job.status === "completed" && hasPod) && (
-                          <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => navigate(`/driver/pods/upload/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
-                            {hasPod ? "Edit / Replace POD" : "POD"}
-                          </Button>
-                        )}
+                      {renderPrimaryAction(job, linkedPod)}
+                      <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 1 }}>
                         {isInterstateJob ? (
                           <Button variant="outlined" startIcon={<DescriptionOutlinedIcon />} onClick={() => navigate(`/driver/work-diary/${job._id}`)} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
-                            Work Diary
+                            Work Diary Pages
                           </Button>
                         ) : (
                           <Button variant="outlined" startIcon={<FactCheckIcon />} onClick={() => navigate("/driver/logs")} sx={{ minHeight: 46, borderRadius: 3, fontWeight: 850 }}>
-                            Today’s Work
+                            Submit Today’s Work
                           </Button>
                         )}
                       </Box>

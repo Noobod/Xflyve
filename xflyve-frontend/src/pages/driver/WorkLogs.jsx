@@ -41,6 +41,8 @@ const palette = {
   teal: "#0e7c76",
   blue: "#2563eb",
   emerald: "#07866f",
+  amber: "#b76e00",
+  rose: "#b42318",
 };
 
 const initialLog = {
@@ -60,6 +62,12 @@ const formatDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown date";
   return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+};
+
+const getStatusMeta = (status = "pending") => {
+  if (status === "approved") return { label: "Approved", color: palette.emerald };
+  if (status === "rejected") return { label: "Rejected", color: palette.rose };
+  return { label: "Pending approval", color: palette.amber };
 };
 
 const StatPill = ({ icon, label, value }) => (
@@ -150,13 +158,13 @@ const DriverWorkLogs = () => {
     try {
       const res = await createWorkLog(toPayload(newLog));
       if (res.data.success) {
-        setSuccess("Work log submitted successfully");
+        setSuccess("Today’s Work submitted successfully");
         setNewLog(initialLog);
         setShowAdvanced(false);
         fetchLogs();
-      } else setError(res.data.message || "Failed to create work log");
+      } else setError(res.data.message || "Failed to create Today’s Work record");
     } catch (err) {
-      setError(err.response?.data?.message || "Server error creating work log");
+      setError(err.response?.data?.message || "Server error creating Today’s Work record");
     } finally {
       setProcessing(false);
     }
@@ -187,29 +195,29 @@ const DriverWorkLogs = () => {
     try {
       const res = await updateWorkLog(editingId, toPayload(editFields));
       if (res.data.success) {
-        setSuccess("Work log updated");
+        setSuccess("Today’s Work updated");
         setEditingId(null);
         setEditFields({});
         fetchLogs();
-      } else setError(res.data.message || "Failed to update work log");
+      } else setError(res.data.message || "Failed to update Today’s Work");
     } catch (err) {
-      setError(err.response?.data?.message || "Server error updating work log");
+      setError(err.response?.data?.message || "Server error updating Today’s Work");
     } finally {
       setProcessing(false);
     }
   };
 
   const handleDelete = async (logId) => {
-    if (!window.confirm("Delete this work log?")) return;
+    if (!window.confirm("Delete this Today’s Work record?")) return;
     setProcessing(true);
     try {
       const res = await deleteWorkLog(logId);
       if (res.data.success) {
-        setSuccess("Work log deleted");
+        setSuccess("Today’s Work deleted");
         fetchLogs();
-      } else setError(res.data.message || "Failed to delete work log");
+      } else setError(res.data.message || "Failed to delete Today’s Work");
     } catch (err) {
-      setError(err.response?.data?.message || "Server error deleting work log");
+      setError(err.response?.data?.message || "Server error deleting Today’s Work");
     } finally {
       setProcessing(false);
     }
@@ -241,9 +249,11 @@ const DriverWorkLogs = () => {
     <Box sx={{ minHeight: "100vh", pt: { xs: 3, sm: 4 }, pb: { xs: 4, sm: 6 }, overflowX: "hidden", background: `radial-gradient(circle at 0% 0%, ${alpha(palette.teal, 0.13)}, transparent 32%), linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)` }}>
       <Box sx={{ width: "100%", maxWidth: 960, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
         <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3, borderRadius: 5, color: "white", background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)` }}>
-          <Chip label="Work log" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
-          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>Submit today’s work</Typography>
-          <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>Structured hours, kilometres and delivery data for records and future payroll.</Typography>
+          <Chip label="Today’s Work" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
+          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>Submit Today’s Work</Typography>
+          <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>
+            Record local work, extra deliveries, warehouse/admin work, phone-call work, or any work not captured by a job.
+          </Typography>
         </Paper>
 
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
@@ -253,7 +263,7 @@ const DriverWorkLogs = () => {
           <Stack spacing={2}>
             {todaysLog && (
               <Alert severity="info" sx={{ borderRadius: 3 }}>
-                You already have a work log for today. You can still submit another if needed.
+                You already have a Today’s Work record for this date. You can still submit another if needed.
               </Alert>
             )}
             {renderFormFields(newLog, setNewLog)}
@@ -264,24 +274,28 @@ const DriverWorkLogs = () => {
               {renderAdvancedFields(newLog, setNewLog)}
             </Collapse>
             <Button variant="contained" size="large" onClick={handleCreateLog} disabled={processing} sx={{ minHeight: 56, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}>
-              {processing ? "Submitting..." : "Submit Work Log"}
+              {processing ? "Submitting..." : "Submit Today’s Work"}
             </Button>
           </Stack>
         </Paper>
 
-        <Typography variant="h5" fontWeight={950} sx={{ mb: 1.75, color: palette.ink, letterSpacing: "-0.045em" }}>Existing logs</Typography>
+        <Typography variant="h5" fontWeight={950} sx={{ mb: 1.75, color: palette.ink, letterSpacing: "-0.045em" }}>Today’s Work history</Typography>
         {loading ? (
           <Paper elevation={0} sx={{ p: 5, textAlign: "center", borderRadius: 5, border: "1px solid", borderColor: palette.line }}>
             <CircularProgress />
           </Paper>
         ) : logs.length === 0 ? (
           <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: "1px solid", borderColor: alpha(palette.teal, 0.16), bgcolor: alpha(palette.teal, 0.055) }}>
-            <Typography fontWeight={900}>No work logs yet</Typography>
-            <Typography sx={{ mt: 0.5, color: palette.muted }}>Submit your first work log above.</Typography>
+            <Typography fontWeight={900}>No Today’s Work records yet</Typography>
+            <Typography sx={{ mt: 0.5, color: palette.muted }}>Submit your first daily record above.</Typography>
           </Paper>
         ) : (
           <Stack spacing={2}>
-            {logs.map((log) => (
+            {logs.map((log) => {
+              const statusMeta = getStatusMeta(log.status);
+              const isApproved = log.status === "approved";
+
+              return (
               <Paper key={log._id} elevation={0} sx={{ p: 2, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
                 {editingId === log._id ? (
                   <Stack spacing={2}>
@@ -299,11 +313,25 @@ const DriverWorkLogs = () => {
                         <Typography fontWeight={950} sx={{ color: palette.ink }}>{formatDate(log.date)}</Typography>
                         <Typography variant="body2" sx={{ color: palette.muted }}>{log.notes || "No notes added."}</Typography>
                       </Box>
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton onClick={() => startEditing(log)}><EditIcon /></IconButton>
-                        <IconButton onClick={() => handleDelete(log._id)} color="error" disabled={processing}><DeleteIcon /></IconButton>
+                      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+                        <Chip
+                          size="small"
+                          label={isApproved ? "Approved by admin — locked" : statusMeta.label}
+                          sx={{ color: statusMeta.color, bgcolor: alpha(statusMeta.color, 0.1), fontWeight: 900 }}
+                        />
+                        {!isApproved && (
+                          <>
+                            <IconButton aria-label="edit Today’s Work" onClick={() => startEditing(log)}><EditIcon /></IconButton>
+                            <IconButton aria-label="delete Today’s Work" onClick={() => handleDelete(log._id)} color="error" disabled={processing}><DeleteIcon /></IconButton>
+                          </>
+                        )}
                       </Stack>
                     </Stack>
+                    {log.status === "rejected" && log.rejectionReason && (
+                      <Alert severity="error" sx={{ borderRadius: 3 }}>
+                        Rejection reason: {log.rejectionReason}
+                      </Alert>
+                    )}
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1 }}>
                       <StatPill icon={<TimerOutlinedIcon />} label="Hours" value={log.hours ?? 0} />
                       <StatPill icon={<SpeedIcon />} label="Kilometres" value={log.kilometers ?? 0} />
@@ -320,7 +348,8 @@ const DriverWorkLogs = () => {
                   </Stack>
                 )}
               </Paper>
-            ))}
+              );
+            })}
           </Stack>
         )}
       </Box>

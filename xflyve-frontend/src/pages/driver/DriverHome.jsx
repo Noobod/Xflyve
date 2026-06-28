@@ -19,11 +19,12 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   getJobsByDriver,
   listPodsByDriver,
-  listWorkDiariesByDriver,
   updateJob,
 } from "../../api";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import FactCheckIcon from "@mui/icons-material/FactCheck";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LocalShippingIcon from "@mui/icons-material/LocalShipping";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
@@ -297,7 +298,6 @@ const DriverHome = () => {
 
   const [jobs, setJobs] = useState([]);
   const [pods, setPods] = useState([]);
-  const [workDiaries, setWorkDiaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
@@ -326,12 +326,10 @@ const DriverHome = () => {
       const results = await Promise.allSettled([
         getJobsByDriver(driverId),
         listPodsByDriver(driverId),
-        listWorkDiariesByDriver(driverId),
       ]);
 
       setJobs(results[0].status === "fulfilled" ? toArray(results[0].value) : []);
       setPods(results[1].status === "fulfilled" ? toArray(results[1].value) : []);
-      setWorkDiaries(results[2].status === "fulfilled" ? toArray(results[2].value) : []);
 
       if (results.some((result) => result.status === "rejected")) {
         setError("Some driver records could not be loaded. Showing what is available.");
@@ -378,22 +376,17 @@ const DriverHome = () => {
 
     const activeTodayJobId = activeTodayJob?._id || activeTodayJob?.id;
     const hasPodForCurrentJob = pods.some((pod) => referencesJob(pod, activeTodayJobId));
-    const hasDiaryForCurrentJob = workDiaries.some((diary) =>
-      referencesJob(diary, activeTodayJob?._id)
-    );
 
     return {
       todaysJobs,
       activeTodayJob,
       hasPodForCurrentJob,
-      hasDiaryForCurrentJob,
       hasAnyJobs: jobs.length > 0,
     };
-  }, [jobs, pods, todayKey, workDiaries]);
+  }, [jobs, pods, todayKey]);
 
   const currentJob = dashboard.activeTodayJob;
   const statusMeta = getStatusMeta(currentJob?.status);
-  const isInterstateJob = currentJob?.jobType === "interstate";
   const isCompletedWithPod =
     currentJob?.status === "completed" && dashboard.hasPodForCurrentJob;
 
@@ -415,10 +408,11 @@ const DriverHome = () => {
     setError("");
 
     try {
-      await updateJob(currentJob._id, { status: nextStatus });
+      const response = await updateJob(currentJob._id, { status: nextStatus });
+      const updatedJob = response.data.data;
       setJobs((prevJobs) =>
         prevJobs.map((job) =>
-          job._id === currentJob._id ? { ...job, status: nextStatus } : job
+          job._id === currentJob._id ? { ...job, ...updatedJob } : job
         )
       );
     } catch (err) {
@@ -452,6 +446,24 @@ const DriverHome = () => {
       icon: <WorkIcon />,
       path: "/driver/jobs",
       featured: true,
+    },
+    {
+      label: "Logs",
+      description: "Today’s Work history",
+      icon: <FactCheckIcon />,
+      path: "/driver/logs",
+    },
+    {
+      label: "POD",
+      description: "Delivery proof history",
+      icon: <UploadFileIcon />,
+      path: "/driver/pods/upload",
+    },
+    {
+      label: "Diary",
+      description: "Work diary history",
+      icon: <DescriptionOutlinedIcon />,
+      path: "/driver/work-diary",
     },
   ];
 
@@ -746,11 +758,7 @@ const DriverHome = () => {
 
             <DashboardSection
               title="Today’s Checklist"
-              subtitle={
-                isInterstateJob
-                  ? "Interstate jobs require delivery proof and a work diary."
-                  : "Local jobs require completion and delivery proof."
-              }
+              subtitle="Track today’s assignment, completion, and delivery proof."
             >
               <Box
                 sx={{
@@ -778,17 +786,6 @@ const DriverHome = () => {
                       : "Upload delivery proof for this job."
                   }
                 />
-                {isInterstateJob ? (
-                  <ChecklistItem
-                    label="Work Diary Pages Uploaded"
-                    complete={dashboard.hasDiaryForCurrentJob}
-                    helper={
-                      dashboard.hasDiaryForCurrentJob
-                        ? "Work diary is linked to this job."
-                        : "Upload the interstate work diary."
-                    }
-                  />
-                ) : null}
               </Box>
             </DashboardSection>
 
@@ -799,7 +796,7 @@ const DriverHome = () => {
               <Box
                 sx={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr)",
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
                   gap: 1.5,
                 }}
               >

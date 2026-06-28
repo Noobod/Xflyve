@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 const DailyWorkLog = require("../models/dailyWorkLog");
-const Job = require("../models/job");
 const logger = require("../utils/logger");
 
 const normalizeDateOnly = (value) => {
@@ -15,38 +14,13 @@ const normalizeDateOnly = (value) => {
   return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
 };
 
-const getOwnedJobIds = async (jobIds = [], driverId) => {
-  if (!Array.isArray(jobIds) || jobIds.length === 0) return [];
-
-  const uniqueJobIds = [...new Set(jobIds.map((id) => id.toString()))];
-  const invalidJobId = uniqueJobIds.find((id) => !mongoose.Types.ObjectId.isValid(id));
-  if (invalidJobId) {
-    const error = new Error("Invalid jobId in jobIds");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const jobs = await Job.find({
-    _id: { $in: uniqueJobIds },
-    assignedTo: driverId,
-  }).select("_id").lean();
-
-  if (jobs.length !== uniqueJobIds.length) {
-    const error = new Error("One or more jobs are not assigned to this driver");
-    error.statusCode = 403;
-    throw error;
-  }
-
-  return uniqueJobIds;
-};
-
 /**
  * Create a new daily work log.
  * Uses driverId from JWT token (req.user.id)
- * jobIds is optional and must belong to the authenticated driver.
+ * Driver-created records are independent daily work and are not job-linked.
  */
 exports.createWorkLog = async (req, res) => {
-  const { date, workDate, hours, kilometers, notes, localStartTime, localEndTime, interstateStartKm, interstateEndKm, deliveriesDone, deliveryLocations, jobIds } = req.body;
+  const { date, workDate, hours, kilometers, notes, localStartTime, localEndTime, interstateStartKm, interstateEndKm, deliveriesDone, deliveryLocations } = req.body;
   const driverId = req.user.id || req.user._id; // use driverId from token
   const effectiveDate = workDate || date;
 
@@ -63,8 +37,6 @@ exports.createWorkLog = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid work date" });
     }
 
-    const ownedJobIds = await getOwnedJobIds(jobIds, driverId);
-
     const newLog = new DailyWorkLog({
       driverId,
       date: normalizedWorkDate,
@@ -78,7 +50,7 @@ exports.createWorkLog = async (req, res) => {
       interstateEndKm,
       deliveriesDone,
       deliveryLocations,
-      jobIds: ownedJobIds,
+      jobIds: [],
     });
 
     await newLog.save();
@@ -172,7 +144,6 @@ exports.updateWorkLog = async (req, res) => {
     "hours",
     "kilometers",
     "notes",
-    "jobIds",
     "localStartTime",
     "localEndTime",
     "interstateStartKm",
@@ -201,6 +172,13 @@ exports.updateWorkLog = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
+    if (userRole === "driver" && log.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "Approved records are locked and cannot be edited",
+      });
+    }
+
     if (updates.date || updates.workDate) {
       const normalizedWorkDate = normalizeDateOnly(updates.workDate || updates.date);
       if (!normalizedWorkDate) {
@@ -210,11 +188,15 @@ exports.updateWorkLog = async (req, res) => {
       updates.workDate = normalizedWorkDate;
     }
 
-    if (updates.jobIds !== undefined) {
-      updates.jobIds = await getOwnedJobIds(updates.jobIds, log.driverId);
+    Object.assign(log, updates);
+
+    if (userRole === "driver" && log.status === "rejected") {
+      log.status = "pending";
+      log.rejectedBy = null;
+      log.rejectedAt = null;
+      log.rejectionReason = undefined;
     }
 
-    Object.assign(log, updates);
     await log.save();
 
     return res.status(200).json({
@@ -251,6 +233,13 @@ exports.deleteWorkLog = async (req, res) => {
 
     if (userRole !== "admin" && String(log.driverId) !== String(userId)) {
       return res.status(403).json({ success: false, message: "Access denied" });
+    }
+
+    if (userRole === "driver" && log.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "Approved records are locked and cannot be deleted",
+      });
     }
 
     await log.deleteOne();

@@ -37,12 +37,38 @@ const palette = {
   heroMid: "#0b2f3a",
   heroEnd: "#0c5f5b",
   teal: "#0e7c76",
+  emerald: "#07866f",
+  amber: "#b76e00",
+  rose: "#b42318",
+};
+
+const formatDate = (value, fallback = "Not recorded") => {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 };
 
 const formatDateTime = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unknown date";
   return date.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+};
+
+const normalizeId = (value) => {
+  if (!value) return "";
+  if (typeof value === "object") return String(value._id || value.id || "");
+  return String(value);
+};
+
+const getStatusMeta = (status = "pending") => {
+  if (status === "approved") return { label: "Approved", color: palette.emerald };
+  if (status === "rejected") return { label: "Rejected", color: palette.rose };
+  return { label: "Pending approval", color: palette.amber };
 };
 
 const WorkDiary = () => {
@@ -58,6 +84,9 @@ const WorkDiary = () => {
   const [notes, setNotes] = useState("");
   const [editId, setEditId] = useState(null);
   const [editNotes, setEditNotes] = useState("");
+  const hasDiaryForRoute = Boolean(routeJobId) && workDiaries.some(
+    (diary) => normalizeId(diary.jobId) === normalizeId(routeJobId)
+  );
 
   const fetchWorkDiaries = useCallback(async () => {
     if (!driverId) return;
@@ -79,6 +108,9 @@ const WorkDiary = () => {
 
   const handleUpload = async (e) => {
     e.preventDefault();
+    if (!routeJobId) {
+      return setError("To upload work diary pages, open an interstate job from View All Jobs.");
+    }
     if (!file) return setError("Please select a PDF file to upload.");
     setUploading(true);
     setError("");
@@ -90,10 +122,10 @@ const WorkDiary = () => {
     if (routeJobId) formData.append("jobId", routeJobId);
 
     try {
-      const uploaded = await uploadWorkDiary(formData);
-      setWorkDiaries((prev) => [uploaded, ...prev]);
+      await uploadWorkDiary(formData);
       setFile(null);
       setNotes("");
+      await fetchWorkDiaries();
     } catch (err) {
       setError(err.response?.data?.message || "Upload failed");
     } finally {
@@ -115,7 +147,16 @@ const WorkDiary = () => {
     try {
       const updated = await updateWorkDiaryNotes(id, { notes: editNotes });
       setWorkDiaries((prev) =>
-        prev.map((diary) => (diary._id === id ? { ...diary, notes: updated.notes } : diary))
+        prev.map((diary) => (
+          diary._id === id
+            ? {
+                ...diary,
+                notes: updated.notes,
+                status: updated.status,
+                rejectionReason: updated.rejectionReason,
+              }
+            : diary
+        ))
       );
       setEditId(null);
       setEditNotes("");
@@ -129,9 +170,13 @@ const WorkDiary = () => {
       <Box sx={{ width: "100%", maxWidth: 960, mx: "auto", px: { xs: 2, sm: 3, md: 4 } }}>
         <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3.5 }, mb: 3, borderRadius: 5, color: "white", background: `linear-gradient(135deg, ${palette.heroStart} 0%, ${palette.heroMid} 58%, ${palette.heroEnd} 100%)` }}>
           <Chip label="Compliance document" size="small" sx={{ mb: 1.5, color: "white", bgcolor: alpha("#fff", 0.12), fontWeight: 850 }} />
-          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>Upload Work Diary</Typography>
+          <Typography variant="h4" fontWeight={950} sx={{ letterSpacing: "-0.065em", lineHeight: 1.05 }}>
+            {routeJobId ? "Upload Work Diary Pages" : "Work Diary History"}
+          </Typography>
           <Typography sx={{ mt: 1, color: alpha("#fff", 0.74), lineHeight: 1.6 }}>
-            Upload your diary or compliance PDF. This is separate from your structured work log.
+            {routeJobId
+              ? "Upload diary or compliance pages for the selected interstate job."
+              : "Review and manage your recent diary and compliance records."}
           </Typography>
         </Paper>
 
@@ -141,28 +186,39 @@ const WorkDiary = () => {
             This work diary will be linked to the selected interstate job.
           </Alert>
         )}
+        {!routeJobId && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 3 }}>
+            To upload work diary pages, open an interstate job from View All Jobs.
+          </Alert>
+        )}
 
-        <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 3, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
-          <form onSubmit={handleUpload}>
-            <Stack spacing={2}>
-              <Box sx={{ p: 2, borderRadius: 4, border: "1px dashed", borderColor: alpha(palette.teal, 0.32), bgcolor: alpha(palette.teal, 0.055) }}>
-                <Stack spacing={1}>
-                  <Box sx={{ width: 48, height: 48, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.1) }}>
-                    <DescriptionOutlinedIcon />
-                  </Box>
-                  <Typography fontWeight={950} sx={{ color: palette.ink }}>Select diary/compliance PDF</Typography>
-                  <Typography variant="body2" sx={{ color: palette.muted }}>Choose the work diary or compliance document from your phone.</Typography>
-                  <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files[0] || null)} />
-                  {file && <Chip icon={<PictureAsPdfIcon />} label={file.name} sx={{ alignSelf: "flex-start" }} />}
-                </Stack>
-              </Box>
-              <TextField label="Notes (optional)" fullWidth multiline rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add diary notes if needed" />
-              <Button variant="contained" size="large" type="submit" disabled={uploading} startIcon={<UploadFileIcon />} sx={{ minHeight: 56, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}>
-                {uploading ? "Uploading..." : "Upload Work Diary"}
-              </Button>
-            </Stack>
-          </form>
-        </Paper>
+        {routeJobId && (
+          <Paper elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, mb: 3, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+            <form onSubmit={handleUpload}>
+              <Stack spacing={2}>
+                <Box sx={{ p: 2, borderRadius: 4, border: "1px dashed", borderColor: alpha(palette.teal, 0.32), bgcolor: alpha(palette.teal, 0.055) }}>
+                  <Stack spacing={1}>
+                    <Box sx={{ width: 48, height: 48, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.1) }}>
+                      <DescriptionOutlinedIcon />
+                    </Box>
+                    <Typography fontWeight={950} sx={{ color: palette.ink }}>Select diary/compliance PDF</Typography>
+                    <Typography variant="body2" sx={{ color: palette.muted }}>
+                      {hasDiaryForRoute
+                        ? "Add another diary or compliance document for this job."
+                        : "Choose the work diary or compliance document from your phone."}
+                    </Typography>
+                    <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files[0] || null)} />
+                    {file && <Chip icon={<PictureAsPdfIcon />} label={file.name} sx={{ alignSelf: "flex-start" }} />}
+                  </Stack>
+                </Box>
+                <TextField label="Notes (optional)" fullWidth multiline rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add diary notes if needed" />
+                <Button variant="contained" size="large" type="submit" disabled={uploading} startIcon={<UploadFileIcon />} sx={{ minHeight: 56, borderRadius: 3, bgcolor: palette.ink, fontWeight: 950 }}>
+                  {uploading ? "Uploading..." : hasDiaryForRoute ? "Upload Additional Diary Pages" : "Upload Work Diary Pages"}
+                </Button>
+              </Stack>
+            </form>
+          </Paper>
+        )}
 
         <Typography variant="h5" fontWeight={950} sx={{ mb: 1.75, color: palette.ink, letterSpacing: "-0.045em" }}>Recent diary uploads</Typography>
         {loading ? (
@@ -174,36 +230,94 @@ const WorkDiary = () => {
           </Paper>
         ) : (
           <Stack spacing={2}>
-            {workDiaries.map((diary) => (
-              <Paper key={diary._id} elevation={0} sx={{ p: 2, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
-                <Stack direction="row" spacing={1.5} alignItems="flex-start">
-                  <Box sx={{ width: 46, height: 46, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.09), flexShrink: 0 }}>
-                    <DescriptionOutlinedIcon />
-                  </Box>
-                  <Box flex={1} minWidth={0}>
-                    <Typography fontWeight={950} sx={{ color: palette.ink }}>{formatDateTime(diary.uploadDate || diary.createdAt)}</Typography>
+            {workDiaries.map((diary) => {
+              const job = diary.jobId && typeof diary.jobId === "object" ? diary.jobId : null;
+              const deliveryLocation = job?.deliveryLocation || job?.dropoffLocation;
+              const truck = diary.truckId && typeof diary.truckId === "object"
+                ? diary.truckId
+                : job?.assignedTruck && typeof job.assignedTruck === "object"
+                  ? job.assignedTruck
+                  : null;
+              const truckLabel = truck?.truckNumber || truck?.name || "Not available";
+              const statusMeta = getStatusMeta(diary.status);
+              const isApproved = diary.status === "approved";
+
+              return (
+                <Paper key={diary._id} elevation={0} sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 5, border: "1px solid", borderColor: palette.line, bgcolor: palette.panel }}>
+                  <Stack spacing={2}>
+                    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                      <Box sx={{ width: 46, height: 46, borderRadius: 3, display: "grid", placeItems: "center", color: palette.teal, bgcolor: alpha(palette.teal, 0.09), flexShrink: 0 }}>
+                        <DescriptionOutlinedIcon />
+                      </Box>
+                      <Box flex={1} minWidth={0}>
+                        <Typography fontWeight={950} sx={{ color: palette.ink }}>
+                          {job ? formatDate(job.jobDate, "Unknown job date") : "Unlinked Work Diary"}
+                        </Typography>
+                        {job ? (
+                          <>
+                            <Typography variant="body2" fontWeight={850} sx={{ mt: 0.5, color: palette.ink }}>
+                              {job.pickupLocation || "Unknown pickup"} → {deliveryLocation || "Unknown delivery"}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: palette.muted, lineHeight: 1.5 }}>
+                              {job.description || "No job description available."}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body2" sx={{ mt: 0.5, color: palette.muted }}>
+                            Uploaded before job-linking was introduced
+                          </Typography>
+                        )}
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={isApproved ? "Approved by admin — locked" : statusMeta.label}
+                        sx={{ color: statusMeta.color, bgcolor: alpha(statusMeta.color, 0.1), fontWeight: 900 }}
+                      />
+                    </Stack>
+
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: 1 }}>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: alpha(palette.teal, 0.045), border: "1px solid", borderColor: palette.line }}>
+                        <Typography variant="caption" sx={{ color: palette.muted, fontWeight: 800 }}>Truck</Typography>
+                        <Typography variant="body2" fontWeight={850} sx={{ color: palette.ink }}>{truckLabel}</Typography>
+                      </Box>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: alpha(palette.teal, 0.045), border: "1px solid", borderColor: palette.line }}>
+                        <Typography variant="caption" sx={{ color: palette.muted, fontWeight: 800 }}>Work Date</Typography>
+                        <Typography variant="body2" fontWeight={850} sx={{ color: palette.ink }}>{formatDate(diary.workDate)}</Typography>
+                      </Box>
+                      <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: alpha(palette.teal, 0.045), border: "1px solid", borderColor: palette.line }}>
+                        <Typography variant="caption" sx={{ color: palette.muted, fontWeight: 800 }}>Uploaded</Typography>
+                        <Typography variant="body2" fontWeight={850} sx={{ color: palette.ink }}>{formatDateTime(diary.uploadDate || diary.createdAt)}</Typography>
+                      </Box>
+                    </Box>
+
                     {editId === diary._id ? (
-                      <TextField multiline rows={2} fullWidth value={editNotes} onChange={(e) => setEditNotes(e.target.value)} sx={{ mt: 1 }} />
+                      <TextField multiline rows={2} fullWidth label="Notes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
                     ) : (
-                      <Typography variant="body2" sx={{ mt: 0.5, color: palette.muted }}>{diary.notes || "No notes added."}</Typography>
+                      <Box>
+                        <Typography variant="caption" sx={{ color: palette.muted, fontWeight: 800 }}>Notes</Typography>
+                        <Typography variant="body2" sx={{ mt: 0.25, color: palette.ink }}>{diary.notes || "No notes added."}</Typography>
+                      </Box>
                     )}
-                  </Box>
-                  <Stack direction="row" spacing={0.5}>
-                    {editId === diary._id ? (
-                      <>
-                        <IconButton onClick={() => saveEdit(diary._id)}><SaveIcon /></IconButton>
-                        <IconButton color="error" onClick={() => setEditId(null)}><CancelIcon /></IconButton>
-                      </>
-                    ) : (
-                      <>
-                        <IconButton onClick={() => { setEditId(diary._id); setEditNotes(diary.notes || ""); }}><EditIcon /></IconButton>
-                        <IconButton color="error" onClick={() => handleDelete(diary._id)}><DeleteIcon /></IconButton>
-                      </>
+
+                    {!isApproved && (
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        {editId === diary._id ? (
+                          <>
+                            <IconButton aria-label="save work diary notes" onClick={() => saveEdit(diary._id)}><SaveIcon /></IconButton>
+                            <IconButton aria-label="cancel editing work diary notes" color="error" onClick={() => setEditId(null)}><CancelIcon /></IconButton>
+                          </>
+                        ) : (
+                          <>
+                            <IconButton aria-label="edit work diary notes" onClick={() => { setEditId(diary._id); setEditNotes(diary.notes || ""); }}><EditIcon /></IconButton>
+                            <IconButton aria-label="delete work diary" color="error" onClick={() => handleDelete(diary._id)}><DeleteIcon /></IconButton>
+                          </>
+                        )}
+                      </Stack>
                     )}
                   </Stack>
-                </Stack>
-              </Paper>
-            ))}
+                </Paper>
+              );
+            })}
           </Stack>
         )}
       </Box>

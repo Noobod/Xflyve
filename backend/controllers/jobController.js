@@ -2,6 +2,11 @@ const Job = require("../models/job");
 const Driver = require("../models/driver");
 const logger = require("../utils/logger");
 
+const DRIVER_STATUS_TRANSITIONS = {
+  pending: "in-progress",
+  "in-progress": "completed",
+};
+
 const normalizeDateOnly = (value) => {
   if (!value) return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -186,14 +191,25 @@ exports.markJobComplete = async (req, res) => {
       return res.status(403).json({ status: "fail", message: "Unauthorized" });
     }
 
-    if (job.status === "completed") {
-      return res.status(400).json({ status: "fail", message: "Job is already completed" });
+    if (job.status !== "in-progress") {
+      return res.status(409).json({
+        status: "fail",
+        message: "Only an in-progress job can be completed",
+      });
     }
 
     job.status = "completed";
     await job.save();
 
-    res.status(200).json({ status: "success", message: "Job marked as completed" });
+    const updatedJob = await Job.findById(job._id)
+      .populate("assignedTruck", "truckNumber")
+      .lean();
+
+    res.status(200).json({
+      status: "success",
+      message: "Job marked as completed",
+      data: updatedJob,
+    });
   } catch (err) {
     logger.error("Mark Job Complete Error: %o", err);
     res.status(500).json({ status: "error", message: "Server error" });
@@ -266,14 +282,24 @@ exports.updateJob = async (req, res) => {
         return res.status(403).json({ status: "fail", message: "Unauthorized" });
       }
 
-      const allowedStatuses = ["pending", "in-progress", "completed"];
-      if (status && allowedStatuses.includes(status)) {
-        job.status = status;
-        await job.save();
-        return res.status(200).json({ status: "success", data: job });
-      } else {
-        return res.status(400).json({ status: "fail", message: "Invalid status update" });
+      const requiredNextStatus = DRIVER_STATUS_TRANSITIONS[job.status];
+      if (!status || status !== requiredNextStatus) {
+        return res.status(409).json({
+          status: "fail",
+          message: requiredNextStatus
+            ? `Job must move from ${job.status} to ${requiredNextStatus}`
+            : "Completed jobs cannot be changed by drivers",
+        });
       }
+
+      job.status = status;
+      await job.save();
+
+      const updatedJob = await Job.findById(jobId)
+        .populate("assignedTruck", "truckNumber")
+        .lean();
+
+      return res.status(200).json({ status: "success", data: updatedJob });
     }
 
     // Admin can update all fields; validate assignedTo if provided

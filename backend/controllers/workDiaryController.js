@@ -5,6 +5,13 @@ const logger = require("../utils/logger");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
 
+const DIARY_HISTORY_DAYS = 30;
+
+const toDateTime = (value, fallback = 0) => {
+  const time = value ? new Date(value).getTime() : fallback;
+  return Number.isNaN(time) ? fallback : time;
+};
+
 const normalizeDateOnly = (value) => {
   if (!value) return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -50,6 +57,13 @@ exports.uploadWorkDiary = async (req, res) => {
         return res.status(403).json({ success: false, message: "Cannot upload work diary for another driver's job" });
       }
 
+      if (linkedJob.jobType !== "interstate") {
+        return res.status(400).json({
+          success: false,
+          message: "Work diary pages can only be linked to interstate jobs",
+        });
+      }
+
       resolvedTruckId = resolvedTruckId || linkedJob.assignedTruck;
     }
 
@@ -57,7 +71,11 @@ exports.uploadWorkDiary = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid truckId" });
     }
 
-    const normalizedWorkDate = workDate ? normalizeDateOnly(workDate) : null;
+    const normalizedWorkDate = workDate
+      ? normalizeDateOnly(workDate)
+      : linkedJob?.jobDate
+        ? normalizeDateOnly(linkedJob.jobDate)
+        : null;
     if (workDate && !normalizedWorkDate) {
       return res.status(400).json({ success: false, message: "Invalid workDate" });
     }
@@ -143,9 +161,40 @@ exports.listWorkDiariesByDriver = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    const workDiaries = await WorkDiary.find({ driverId })
-      .populate("jobId", "title pickupLocation deliveryLocation jobDate status")
-      .populate("truckId", "truckNumber");
+    const includeOlder = req.query.includeOlder === "true";
+    const query = { driverId };
+
+    if (!includeOlder) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - DIARY_HISTORY_DAYS);
+
+      query.$or = [
+        { uploadDate: { $gte: cutoff } },
+        {
+          $and: [
+            { uploadDate: null },
+            { createdAt: { $gte: cutoff } },
+          ],
+        },
+      ];
+    }
+
+    const workDiaries = await WorkDiary.find(query)
+      .populate(
+        "jobId",
+        "jobDate pickupLocation deliveryLocation description status jobNumber"
+      )
+      .populate("truckId", "truckNumber name")
+      .lean();
+
+    workDiaries.sort((a, b) => {
+      const aUploadTime = toDateTime(a.uploadDate, toDateTime(a.createdAt));
+      const bUploadTime = toDateTime(b.uploadDate, toDateTime(b.createdAt));
+
+      if (aUploadTime !== bUploadTime) return bUploadTime - aUploadTime;
+      return toDateTime(b.createdAt) - toDateTime(a.createdAt);
+    });
+
     return res.status(200).json({ success: true, data: workDiaries });
   } catch (err) {
     logger.error("List work diaries by driver error: %o", err);
@@ -173,7 +222,22 @@ exports.updateWorkDiary = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
+    if (req.user.role === "driver" && workDiary.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "Approved work diaries are locked and cannot be edited",
+      });
+    }
+
     workDiary.notes = notes || workDiary.notes;
+
+    if (req.user.role === "driver" && workDiary.status === "rejected") {
+      workDiary.status = "pending";
+      workDiary.rejectedBy = null;
+      workDiary.rejectedAt = null;
+      workDiary.rejectionReason = undefined;
+    }
+
     await workDiary.save();
 
     res.status(200).json({ success: true, message: "Work diary updated", data: workDiary });
@@ -200,6 +264,13 @@ exports.deleteWorkDiary = async (req, res) => {
 
     if (req.user.role !== "admin" && workDiary.driverId.toString() !== userId.toString()) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (req.user.role === "driver" && workDiary.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "Approved work diaries are locked and cannot be deleted",
+      });
     }
 
     if (workDiary.publicId) {

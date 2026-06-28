@@ -5,6 +5,27 @@ const logger = require("../utils/logger");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
 
+const POD_HISTORY_DAYS = 30;
+
+const toDateTime = (value, fallback = 0) => {
+  const time = value ? new Date(value).getTime() : fallback;
+  return Number.isNaN(time) ? fallback : time;
+};
+
+const formatPODForDriverHistory = (pod) => {
+  if (!pod.jobId) return pod;
+
+  return {
+    ...pod,
+    jobId: {
+      ...pod.jobId,
+      // Job currently stores this value as deliveryLocation. Keep that field and
+      // expose the requested dropoffLocation name for driver POD history clients.
+      dropoffLocation: pod.jobId.dropoffLocation || pod.jobId.deliveryLocation,
+    },
+  };
+};
+
 /**
  * Upload a new POD PDF
  * Only Drivers can upload
@@ -117,10 +138,43 @@ exports.listPODsByDriver = async (req, res) => {
       return res.status(403).json({ success: false, message: "Access denied" });
     }
 
-    const pods = await JobPod.find({ driverId })
-      .populate("jobId", "title pickupLocation deliveryLocation jobDate status")
-      .sort({ createdAt: -1 });
-    return res.status(200).json({ success: true, data: pods });
+    const includeOlder = req.query.includeOlder === "true";
+    const query = { driverId };
+
+    if (!includeOlder) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - POD_HISTORY_DAYS);
+
+      query.$or = [
+        { uploadDate: { $gte: cutoff } },
+        {
+          $and: [
+            { uploadDate: null },
+            { createdAt: { $gte: cutoff } },
+          ],
+        },
+      ];
+    }
+
+    const pods = await JobPod.find(query)
+      .populate(
+        "jobId",
+        "jobDate pickupLocation deliveryLocation dropoffLocation description status jobNumber"
+      )
+      .lean();
+
+    pods.sort((a, b) => {
+      const aUploadTime = toDateTime(a.uploadDate, toDateTime(a.createdAt));
+      const bUploadTime = toDateTime(b.uploadDate, toDateTime(b.createdAt));
+
+      if (aUploadTime !== bUploadTime) return bUploadTime - aUploadTime;
+      return toDateTime(b.createdAt) - toDateTime(a.createdAt);
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: pods.map(formatPODForDriverHistory),
+    });
   } catch (err) {
     logger.error("List PODs by driver error: %o", err);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -147,7 +201,22 @@ exports.updatePOD = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
+    if (req.user.role === "driver" && pod.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "Approved PODs are locked and cannot be edited",
+      });
+    }
+
     pod.notes = notes || pod.notes;
+
+    if (req.user.role === "driver" && pod.status === "rejected") {
+      pod.status = "pending";
+      pod.rejectedBy = null;
+      pod.rejectedAt = null;
+      pod.rejectionReason = undefined;
+    }
+
     await pod.save();
 
     return res.status(200).json({ success: true, message: "POD updated", data: pod });
@@ -174,6 +243,13 @@ exports.deletePOD = async (req, res) => {
 
     if (req.user.role !== "admin" && pod.driverId.toString() !== userId.toString()) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (req.user.role === "driver" && pod.status === "approved") {
+      return res.status(409).json({
+        success: false,
+        message: "Approved PODs are locked and cannot be deleted",
+      });
     }
 
     if (pod.publicId) {

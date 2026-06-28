@@ -139,12 +139,14 @@ jobSchema.methods.isInvoiceReady = async function () {
   if (this.recordStatus === "archived") return false;
   if (!["pending", "ready"].includes(this.invoiceStatus || "pending")) return false;
 
-  const [hasPod, hasDiary] = await Promise.all([
-    this.hasApprovedPod(),
-    this.hasApprovedDiary(),
-  ]);
+  const hasPod = await this.hasApprovedPod();
+  if (!hasPod) return false;
 
-  return hasPod && hasDiary;
+  // Local work requires approved delivery proof only. Interstate work also
+  // requires an approved compliance/work diary before invoicing.
+  if (this.jobType === "local") return true;
+
+  return this.hasApprovedDiary();
 };
 
 jobSchema.statics.findReadyForInvoicing = async function () {
