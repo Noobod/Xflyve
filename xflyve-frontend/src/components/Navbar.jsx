@@ -23,6 +23,7 @@ import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
+import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -60,6 +61,7 @@ const getNavigationItems = (role) => {
       { label: "Jobs", path: "/driver/jobs", icon: <WorkRoundedIcon fontSize="small" /> },
       { label: "Logs", path: "/driver/logs", icon: <FactCheckRoundedIcon fontSize="small" /> },
       { label: "POD", path: "/driver/pods/upload", icon: <UploadFileRoundedIcon fontSize="small" /> },
+      { label: "Diary", path: "/driver/work-diary", icon: <MenuBookRoundedIcon fontSize="small" /> },
     ];
   }
 
